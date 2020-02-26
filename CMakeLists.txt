@@ -3,9 +3,16 @@ project(mcc VERSION 0.1.0 LANGUAGES CXX)
 
 set (SOURCE_FILES
 	"src/mcc/entry.cpp"
+	"src/mcc/result.hpp"
 	"src/mcc/config.hpp"
 	"src/mcc/config.cpp"
-	"src/mcc/result.hpp"
+
+	"src/mcc/map/generation.hpp"
+	"src/mcc/map/block.hpp"
+	"src/mcc/map/block.cpp"
+	"src/mcc/map/chunk.hpp"
+	"src/mcc/map/chunk.cpp"
+	"src/mcc/map/terrain.hpp"
 )
 
 add_executable(mcc-game ${SOURCE_FILES})
