@@ -1,3 +1,4 @@
 .vscode/
 build/
-bin/
+bin/*
+!bin/mcc.cfg
