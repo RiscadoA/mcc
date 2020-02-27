@@ -41,8 +41,52 @@ VertexBuffer::VertexBuffer(VertexBuffer&& rhs) {
     rhs.vbo = 0;
 }
 
+VertexBuffer& VertexBuffer::operator=(VertexBuffer&& rhs) {
+    if (this->vbo != 0) {
+        glDeleteBuffers(1, &this->vbo);
+    }
+
+    this->vbo = rhs.vbo;
+    rhs.vbo = 0;
+    
+    return *this;
+}
+
 VertexBuffer::~VertexBuffer() {
     if (this->vbo != 0) {
         glDeleteBuffers(1, &this->vbo);
     }
+}
+
+Result<void*, std::string> VertexBuffer::map() {
+    glBindBuffer(GL_ARRAY_BUFFER, this->vbo);
+    auto ret = glMapBuffer(GL_ARRAY_BUFFER, GL_WRITE_ONLY);
+
+    if (ret == nullptr) {
+        return Result<void*, std::string>::error(
+            "VertexBuffer::map() failed:\nglMapBuffer(GL_ARRAY_BUFFER, GL_WRITE_ONLY) returned nullptr:\n"
+            "glGetError() returned '" + std::to_string(glGetError()) + "'"
+        );
+    }
+
+    return Result<void*, std::string>::success(std::move(ret));
+}
+
+void VertexBuffer::unmap() {
+    glUnmapBuffer(GL_ARRAY_BUFFER);
+}
+
+Result<void, std::string> VertexBuffer::update(size_t offset, size_t size, const void* data) {
+    glBindBuffer(GL_ARRAY_BUFFER, this->vbo);
+    glBufferSubData(GL_ARRAY_BUFFER, GLintptr(offset), GLsizeiptr(size), data);
+
+    auto err = glGetError();
+    if (err != 0) {
+        return Result<void, std::string>::error(
+            "VertexBuffer::update() failed:\n"
+            "glGetError() returned '" + std::to_string(err) + "'"
+        );
+    }
+
+    return Result<void, std::string>::success();
 }

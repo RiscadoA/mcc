@@ -66,6 +66,29 @@ Shader::Shader(Shader&& rhs) {
     rhs.fs = 0;
 }
 
+Shader& Shader::operator=(Shader&& rhs) {
+    if (this->program != 0) {
+        glDeleteProgram(this->program);
+    }
+
+    if (this->vs != 0) {
+        glDeleteShader(this->vs);
+    }
+
+    if (this->fs != 0) {
+        glDeleteShader(this->fs);
+    }
+
+    this->program = rhs.program;
+    this->vs = rhs.vs;
+    this->fs = rhs.fs;
+    rhs.program = 0;
+    rhs.vs = 0;
+    rhs.fs = 0;
+    
+    return *this;
+}
+
 Shader::~Shader() {
     if (this->program != 0) {
         glDeleteProgram(this->program);

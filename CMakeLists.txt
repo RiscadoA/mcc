@@ -21,11 +21,13 @@ set (SOURCE_FILES
 	"src/mcc/entity/bounding_box.cpp"
 
 	"src/mcc/map/generation.hpp"
+	"src/mcc/map/generation.cpp"
 	"src/mcc/map/block.hpp"
 	"src/mcc/map/block.cpp"
 	"src/mcc/map/chunk.hpp"
 	"src/mcc/map/chunk.cpp"
 	"src/mcc/map/terrain.hpp"
+	"src/mcc/map/terrain.cpp"
 
 	"src/mcc/ui/camera.hpp"
 	"src/mcc/ui/camera.cpp"

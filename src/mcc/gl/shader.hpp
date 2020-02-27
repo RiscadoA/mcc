@@ -9,7 +9,9 @@ namespace mcc::gl {
     public:
         static Result<Shader, std::string> create(const char* vs, const char* fs);
         
+        inline Shader() : program(0), vs(0), fs(0) {}
         Shader(Shader&& rhs);
+        Shader& operator=(Shader&& rhs);
         ~Shader();
 
         void bind();

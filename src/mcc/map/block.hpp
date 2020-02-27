@@ -2,6 +2,10 @@
 
 #include <glm/glm.hpp>
 #include <fstream>
+#include <vector>
+#include <string>
+
+#include <mcc/result.hpp>
 
 namespace mcc::map {
     class Chunk;
@@ -9,9 +13,36 @@ namespace mcc::map {
     // Base class for block states
     class Block {
     public:
-        enum class Type {
-            Empty,
-            Stone,
+        static constexpr float Size = 1;
+
+        class Type {
+        public:
+            Type(unsigned short id, const std::string& name, const glm::vec3& color, bool opaque);
+
+            inline unsigned short get_id() const { return this->id; }
+            inline std::string get_name() const { return this->name; }
+            inline const glm::vec3& get_color() const { return this->color; }
+            inline bool is_opaque() const { return this->opaque; }
+
+        private:
+            unsigned short id;
+            std::string name;
+            glm::vec3 color;
+            bool opaque;
+        };
+
+        class Registry {
+        public:
+            Registry();
+            ~Registry() = default;
+            
+            void load(std::istream& in); // TO DO
+
+            Result<const Block::Type&, std::string> operator[](const char* name) const;
+            const Block::Type& operator[](unsigned short id) const;
+
+        private:
+            std::vector<Block::Type> block_types;
         };
 
         Block(Chunk* chunk, glm::u8vec3 pos);

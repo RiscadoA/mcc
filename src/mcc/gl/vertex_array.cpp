@@ -82,6 +82,17 @@ VertexArray::VertexArray(VertexArray&& rhs) {
     rhs.vao = 0;
 }
 
+VertexArray& VertexArray::operator=(VertexArray&& rhs) {
+    if (this->vao != 0) {
+        glDeleteVertexArrays(1, &this->vao);
+    }
+
+    this->vao = rhs.vao;
+    rhs.vao = 0;
+
+    return *this;
+}
+
 VertexArray::~VertexArray() {
     if (this->vao != 0) {
         glDeleteVertexArrays(1, &this->vao);

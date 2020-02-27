@@ -43,7 +43,9 @@ namespace mcc::gl {
 
     class VertexArray final {
     public:
+        inline VertexArray() : vao(0) {}
         VertexArray(VertexArray&& rhs);
+        VertexArray& operator=(VertexArray&& rhs);
         ~VertexArray();
 
         static Result<VertexArray, std::string> create(std::initializer_list<Attribute> attributes);

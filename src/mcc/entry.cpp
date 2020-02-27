@@ -7,6 +7,8 @@
 #include <mcc/gl/vertex_array.hpp>
 #include <mcc/ui/camera.hpp>
 
+#include <mcc/map/terrain.hpp>
+
 #include <iostream>
 
 mcc::ui::Camera* camera;
@@ -32,7 +34,7 @@ void glfw_cursor_pos_callback(GLFWwindow* win, double x, double y) {
     py = y;
 }
 
-int main(int argc, char** argv) {
+int main(int argc, char** argv) try {
     auto config = mcc::Config(argc, argv);
 
     camera_sensitivity = float(config["camera.sensitivity"].unwrap().as_double().unwrap());
@@ -71,7 +73,7 @@ int main(int argc, char** argv) {
         float(config["window.width"].unwrap().as_double().unwrap() / config["window.height"].unwrap().as_double().unwrap()),
         float(config["camera.z_near"].unwrap().as_double().unwrap()),
         float(config["camera.z_far"].unwrap().as_double().unwrap()),
-        glm::vec3(0.0f, 0.0f, -1.0f),
+        glm::vec3(0.0f, 0.5f, -1.0f),
         glm::vec2(0.0f, 0.0f)
     );
 
@@ -80,68 +82,15 @@ int main(int argc, char** argv) {
     glfwSwapInterval(1);
 
     // Load game
-    
-    // OpenGL test
-    auto shader = mcc::gl::Shader::create(
-        R"(
-            #version 330 core
+    auto registry = mcc::map::Block::Registry();
+    auto terrain = mcc::map::Terrain(mcc::map::Generation(0), registry);
+    auto view_distance = config["camera.view_distance"].unwrap().as_integer().unwrap();
 
-            uniform mat4 mvp;
+    // Prepare rendering
+    glEnable(GL_DEPTH_TEST);
+    glEnable(GL_CULL_FACE);
+    glFrontFace(GL_CCW);
 
-            in vec3 position;
-            in vec3 color;
-
-            out vec4 gl_Position;
-            out vec3 frag_color;
-
-            void main() {
-                gl_Position = mvp * vec4(position, 1.0);
-                frag_color = color;
-            }
-        )",
-        R"(
-            #version 330 core
-
-            in vec3 frag_color;
-
-            out vec4 color;
-
-            void main() {
-                color = vec4(frag_color, 1.0);
-            }
-        )"
-    ).unwrap();
-
-    float data[36] = {
-        -1.0f, -1.0f, 0.0f,       1.0f, 0.0f, 0.0f,
-        +1.0f, -1.0f, 0.0f,       0.0f, 1.0f, 0.0f,
-        +1.0f, +1.0f, 0.0f,       0.0f, 0.0f, 1.0f,
-        +1.0f, +1.0f, 0.0f,       0.0f, 0.0f, 1.0f,
-        -1.0f, +1.0f, 0.0f,       1.0f, 1.0f, 0.0f,
-        -1.0f, -1.0f, 0.0f,       1.0f, 0.0f, 0.0f
-    };
-
-    auto vb = mcc::gl::VertexBuffer::create(
-        sizeof(data),
-        data,
-        mcc::gl::Usage::Static
-    ).unwrap();
-
-    auto va = mcc::gl::VertexArray::create({
-        mcc::gl::Attribute(
-            vb,
-            6 * sizeof(float), 0 * sizeof(float),
-            3, mcc::gl::Attribute::Type::F32,
-            shader.get_attribute_location("position").unwrap()
-        ),
-        mcc::gl::Attribute(
-            vb,
-            6 * sizeof(float), 3 * sizeof(float),
-            3, mcc::gl::Attribute::Type::F32,
-            shader.get_attribute_location("color").unwrap()
-        )
-    }).unwrap();
-    
     // Main loop
     while (!glfwWindowShouldClose(win)) {
         glfwPollEvents();
@@ -165,14 +114,26 @@ int main(int argc, char** argv) {
         camera->update();
 
         glClearColor(0.1f, 0.5f, 0.8f, 1.0f);
-        glClear(GL_COLOR_BUFFER_BIT);
+        glClear(GL_COLOR_BUFFER_BIT | GL_DEPTH_BUFFER_BIT);
 
-        glm::mat4 mvp = camera->get_projection() * camera->get_view();
+        terrain.update(dt);
+        
+        glm::i64vec3 chunk_pos = glm::round(camera->get_position() / glm::vec3(mcc::map::Chunk::Size * mcc::map::Block::Size));
+        
+        /*auto& chunk = terrain.reference(glm::i64vec3(0, -1, 0), 2.5f);
+        terrain.dereference(chunk);*/
 
-        shader.bind();
-        va.bind();
-        glUniformMatrix4fv(shader.get_uniform_location("mvp").unwrap(), 1, GL_FALSE, &mvp[0][0]);
-        glDrawArrays(GL_TRIANGLES, 0, 6);
+        for (int x = -view_distance; x <= view_distance; ++x) {
+            for (int y = -view_distance; y <= view_distance; ++y) {
+                for (int z = -view_distance; z <= view_distance; ++z) {
+                    auto& chunk = terrain.reference(chunk_pos + glm::i64vec3(x, y, z), 2.5f);
+                    terrain.dereference(chunk);
+                }
+            }
+        }
+
+        glm::mat4 vp = camera->get_projection() * camera->get_view();
+        terrain.draw(vp);
 
         glfwSwapBuffers(win);
     }
@@ -184,4 +145,10 @@ int main(int argc, char** argv) {
     glfwDestroyWindow(win);
 
     return 0;
+} catch(std::exception& e)  {
+    std::cerr << "Caught exception on main():\n" << e.what() << "\n";
+    std::abort();
+} catch (...) {
+    std::cerr << "Caught unknown exception on main()\n";
+    std::abort();
 }
