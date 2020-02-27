@@ -3,8 +3,8 @@
 using namespace mcc;
 using namespace mcc::map;
 
-Block::Block(Chunk* chunk, uint8_t x, uint8_t y, uint8_t z) :
-    chunk(chunk), x(x), y(y), z(z), prev(nullptr), next(nullptr) {
+Block::Block(Chunk* chunk, glm::u8vec3 pos) :
+    chunk(chunk), pos(pos), prev(nullptr), next(nullptr) {
     // Empty
 }
 

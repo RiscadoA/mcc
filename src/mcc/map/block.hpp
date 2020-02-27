@@ -1,6 +1,6 @@
 #pragma once
 
-#include <glm/vec3.hpp>
+#include <glm/glm.hpp>
 #include <fstream>
 
 namespace mcc::map {
@@ -14,7 +14,7 @@ namespace mcc::map {
             Stone,
         };
 
-        Block(Chunk* chunk, uint8_t x, uint8_t y, uint8_t z);
+        Block(Chunk* chunk, glm::u8vec3 pos);
         virtual ~Block() = default;
 
         // Called each game update for each loaded block state
@@ -28,9 +28,7 @@ namespace mcc::map {
 
         inline Chunk* get_chunk() { return this->chunk; }
         inline const Chunk* get_chunk() const { return this->chunk; }
-        inline uint8_t get_x() const { return this->x; }
-        inline uint8_t get_y() const { return this->y; }
-        inline uint8_t get_z() const { return this->z; }
+        inline glm::u8vec3 get_pos() const { return this->pos; }
 
         inline Block* get_prev() { return this->prev; }
         inline const Block* get_prev() const { return this->prev;}
@@ -43,6 +41,7 @@ namespace mcc::map {
         Block* prev;
         Block* next;
         Chunk* chunk;
-        uint8_t x, y, z;
+
+        glm::u8vec3 pos;
     };
 }

@@ -7,6 +7,11 @@ set (SOURCE_FILES
 	"src/mcc/config.hpp"
 	"src/mcc/config.cpp"
 
+	"src/mcc/entity/entity.hpp"
+	"src/mcc/entity/entity.cpp"
+	"src/mcc/entity/bounding_box.hpp"
+	"src/mcc/entity/bounding_box.cpp"
+
 	"src/mcc/map/generation.hpp"
 	"src/mcc/map/block.hpp"
 	"src/mcc/map/block.cpp"
