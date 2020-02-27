@@ -61,7 +61,7 @@ mcc::Config::Config(int argc, char** argv) {
 		// Remove whitespace
 		for (i = 0; i < line.size() && (line[i] == ' ' || line[i] == '\t'); ++i);
 		line = line.substr(i);
-		for (i = line.size() - 1; i >= 0 && (line[i] == ' ' || line[i] == '\t'); --i);
+		for (i = int(line.size()) - 1; i >= 0 && (line[i] == ' ' || line[i] == '\t'); --i);
 		line = line.substr(0, size_t(i) + 1);
 		if (line.empty())
 			continue;
@@ -82,11 +82,11 @@ mcc::Config::Config(int argc, char** argv) {
 			// Remove whitespace
 			for (i = 0; i < key.size() && (key[i] == ' ' || key[i] == '\t'); ++i);
 			key = key.substr(i);
-			for (i = key.size() - 1; i >= 0 && (key[i] == ' ' || key[i] == '\t'); --i);
+			for (i = int(key.size()) - 1; i >= 0 && (key[i] == ' ' || key[i] == '\t'); --i);
 			key = key.substr(0, size_t(i) + 1);
 			for (i = 0; i < value.size() && (value[i] == ' ' || value[i] == '\t'); ++i);
 			value = value.substr(i);
-			for (i = value.size() - 1; i >= 0 && (value[i] == ' ' || value[i] == '\t'); --i);
+			for (i = int(value.size()) - 1; i >= 0 && (value[i] == ' ' || value[i] == '\t'); --i);
 			value = value.substr(0, size_t(i) + 1);
 
 			if (key.empty()) {

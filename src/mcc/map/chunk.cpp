@@ -27,3 +27,31 @@ void Chunk::unload(std::ostream& out) {
     // Unload entities
     // TO DO
 }
+
+void Chunk::add_entity(entity::Entity* entity) {
+    if (this->first_entity == nullptr) {
+        this->first_entity = entity;
+        entity->prev = nullptr;
+        entity->next = nullptr;
+    } else {
+        entity->prev = nullptr;
+        entity->next = this->first_entity;
+        this->first_entity->prev = entity;
+        this->first_entity = entity;
+    }
+}
+
+void Chunk::remove_entity(entity::Entity* entity) {
+    if (entity->next != nullptr) {
+        entity->next->prev = entity->prev;
+    }
+
+    if (entity == this->first_entity) {
+        this->first_entity = entity->next;
+    } else {
+        entity->prev->next = entity->next;
+    }
+
+    entity->prev = nullptr;
+    entity->next = nullptr;
+}

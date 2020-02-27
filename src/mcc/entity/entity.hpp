@@ -4,12 +4,18 @@
 #include <fstream>
 #include <glm/glm.hpp>
 
+namespace mcc::map {
+    class Chunk;
+}
+
 namespace mcc::entity {
+    // Entities base class
     class Entity {
     public:
         Entity(glm::i64vec3 chunk_pos, glm::f32vec3 pos);
         virtual ~Entity() = default;
 
+        virtual void update(float dt) = 0;
         virtual void load(std::istream& in) = 0;
         virtual void unload(std::ostream& out) = 0;
 
@@ -24,6 +30,8 @@ namespace mcc::entity {
         inline const Entity* get_next() const { return this->prev;}
 
     private:
+        friend map::Chunk;
+
         glm::i64vec3 chunk_pos;
         glm::f32vec3 pos;
 

@@ -20,6 +20,7 @@ namespace mcc::map {
         // If unload() is not called before the destructor, the data in the chunk is discarded
         ~Chunk(); 
         
+        void draw(const glm::mat4& vp);
         void update(float dt); // Updates every block state
         void unload(std::ostream& out); // TO DO: Unloads chunk data, saving it to the disk
         
@@ -29,7 +30,12 @@ namespace mcc::map {
 
         inline glm::i64vec3 get_pos() const { return this->pos; }
 
+        void add_entity(entity::Entity* entity);
+        void remove_entity(entity::Entity* entity);
+
     private:
+        void build();
+
         glm::i64vec3 pos; // World chunk coordinates
         mutable std::atomic<int64_t> ref_count; // Number of references that prevent a chunk from being unloaded
 

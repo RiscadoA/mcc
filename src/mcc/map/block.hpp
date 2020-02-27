@@ -16,7 +16,7 @@ namespace mcc::map {
 
         Block(Chunk* chunk, glm::u8vec3 pos);
         virtual ~Block() = default;
-
+        
         // Called each game update for each loaded block state
         virtual void update(float dt);
         // Called when the block is destroyed
@@ -29,7 +29,7 @@ namespace mcc::map {
         inline Chunk* get_chunk() { return this->chunk; }
         inline const Chunk* get_chunk() const { return this->chunk; }
         inline glm::u8vec3 get_pos() const { return this->pos; }
-
+        
         inline Block* get_prev() { return this->prev; }
         inline const Block* get_prev() const { return this->prev;}
         inline Block* get_next() { return this->prev; }

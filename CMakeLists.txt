@@ -7,6 +7,14 @@ set (SOURCE_FILES
 	"src/mcc/config.hpp"
 	"src/mcc/config.cpp"
 
+	"src/mcc/gl/usage.hpp"
+	"src/mcc/gl/shader.hpp"
+	"src/mcc/gl/shader.cpp"
+	"src/mcc/gl/vertex_buffer.hpp"
+	"src/mcc/gl/vertex_buffer.cpp"
+	"src/mcc/gl/vertex_array.hpp"
+	"src/mcc/gl/vertex_array.cpp"
+
 	"src/mcc/entity/entity.hpp"
 	"src/mcc/entity/entity.cpp"
 	"src/mcc/entity/bounding_box.hpp"
@@ -18,6 +26,9 @@ set (SOURCE_FILES
 	"src/mcc/map/chunk.hpp"
 	"src/mcc/map/chunk.cpp"
 	"src/mcc/map/terrain.hpp"
+
+	"src/mcc/ui/camera.hpp"
+	"src/mcc/ui/camera.cpp"
 )
 
 add_executable(mcc-game ${SOURCE_FILES})
