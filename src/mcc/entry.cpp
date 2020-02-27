@@ -84,7 +84,7 @@ int main(int argc, char** argv) try {
     // Load game
     auto registry = mcc::map::Block::Registry();
     auto terrain = mcc::map::Terrain(mcc::map::Generation(0), registry);
-    auto view_distance = config["camera.view_distance"].unwrap().as_integer().unwrap();
+    auto view_distance = int(config["camera.view_distance"].unwrap().as_integer().unwrap());
 
     // Prepare rendering
     glEnable(GL_DEPTH_TEST);
