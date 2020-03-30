@@ -16,6 +16,30 @@ Result<VertexArray, std::string> VertexArray::create(std::initializer_list<Attri
         GLboolean gl_normalized;
 
         switch (attribute.type) {
+            case Attribute::Type::U8: {
+                gl_type = GL_UNSIGNED_BYTE;
+                gl_normalized = GL_FALSE;
+                break;
+            }
+
+            case Attribute::Type::I8: {
+                gl_type = GL_BYTE;
+                gl_normalized = GL_FALSE;
+                break;
+            }
+
+            case Attribute::Type::NU8: {
+                gl_type = GL_UNSIGNED_BYTE;
+                gl_normalized = GL_TRUE;
+                break;
+            }
+
+            case Attribute::Type::NI8: {
+                gl_type = GL_BYTE;
+                gl_normalized = GL_TRUE;
+                break;
+            }
+
             case Attribute::Type::U32: {
                 gl_type = GL_UNSIGNED_INT;
                 gl_normalized = GL_FALSE;
@@ -50,7 +74,7 @@ Result<VertexArray, std::string> VertexArray::create(std::initializer_list<Attri
                 std::abort(); // Unreachable code
             }
         }
-
+        
         glBindBuffer(GL_ARRAY_BUFFER, attribute.buffer.vbo);
         glVertexAttribPointer(
             attribute.shader_location,
@@ -60,6 +84,7 @@ Result<VertexArray, std::string> VertexArray::create(std::initializer_list<Attri
             GLsizei(attribute.stride),
             (const void*)attribute.offset
         );
+
         glEnableVertexAttribArray(attribute.shader_location);
     }
 
@@ -100,5 +125,10 @@ VertexArray::~VertexArray() {
 }
 
 void VertexArray::bind() {
+#ifndef NDEBUG
+    if (this->vao == 0) {
+        std::abort(); // This shouldn't happen
+    }
+#endif
     glBindVertexArray(this->vao);
 }

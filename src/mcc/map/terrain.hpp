@@ -1,46 +1,29 @@
 #pragma once
 
-#include <list>
-#include <queue>
-#include <future>
-#include <thread>
-#include <glm/glm.hpp>
-#include <GLFW/glfw3.h>
-
-#include <mcc/map/chunk.hpp>
+#include <mcc/ui/camera.hpp>
+#include <mcc/gl/vertex_array.hpp>
 #include <mcc/gl/shader.hpp>
+#include <mcc/map/chunk.hpp>
+#include <mcc/map/generator.hpp>
+
+#include <map>
 
 namespace mcc::map {
-    // Loads and unloads chunks as needed
     class Terrain {
     public:
-        Terrain(const Generation& generation, const Block::Registry& registry);
+        Terrain(const Generator& generator);
         ~Terrain();
         
-        // References a chunk and sets its lifetime to at least the value specified.
-        // The chunk won't be immediatelly retrieved (this is an async operation), as it takes time to load/generate.
-        // When the chunk isn't needed anymore, dereference should be called.
-        Chunk& reference(glm::i64vec3 position, float lifetime = 10.0f);
-        void dereference(Chunk& chunk);
+        // Loads new chunks and unloads old ones
+        void update(const ui::Camera& camera);
 
-        void draw(const glm::mat4& vp);
-        void update(float dt);
-        
+        // Draws the currently loaded chunks
+        void draw(const ui::Camera& camera);
+
     private:
-        static void load_thread_func(Terrain& terrain, GLFWwindow* context);
-
-        const Block::Registry& registry;
-        Generation generation;
-        
-        std::recursive_mutex list_mutex;
-        std::list<Chunk> chunks; // Loaded/loading chunks
-
-        std::mutex queue_mutex;
-        std::condition_variable queue_cv;
-        std::queue<Chunk*> load_queue;
-        std::thread load_thread;
-        std::atomic<bool> thread_stop;
+        const Generator& generator;
 
         gl::Shader shader;
+        Chunk chunk;
     };
 }

@@ -34,6 +34,57 @@ void glfw_cursor_pos_callback(GLFWwindow* win, double x, double y) {
     py = y;
 }
 
+
+void APIENTRY gl_debug_output(
+    GLenum source,
+    GLenum type,
+    GLuint id,
+    GLenum severity,
+    GLsizei length,
+    const GLchar *message,
+    const void *userParam) {
+
+    // Ignore non-significant error/warning codes
+    /*if(id == 131169 || id == 131185 || id == 131218 || id == 131204) {
+        return;
+    }*/
+
+    std::cerr << "OpenGL debug message (" << id << "): " << message << std::endl;
+
+    switch (source)
+    {
+        case GL_DEBUG_SOURCE_API:             std::cout << "Source: API" << std::endl; break;
+        case GL_DEBUG_SOURCE_WINDOW_SYSTEM:   std::cout << "Source: Window System" << std::endl; break;
+        case GL_DEBUG_SOURCE_SHADER_COMPILER: std::cout << "Source: Shader Compiler" << std::endl; break;
+        case GL_DEBUG_SOURCE_THIRD_PARTY:     std::cout << "Source: Third Party" << std::endl; break;
+        case GL_DEBUG_SOURCE_APPLICATION:     std::cout << "Source: Application" << std::endl; break;
+        case GL_DEBUG_SOURCE_OTHER:           std::cout << "Source: Other" << std::endl; break;
+    }
+
+    switch (type)
+    {
+        case GL_DEBUG_TYPE_ERROR:               std::cout << "Type: Error" << std::endl; break;
+        case GL_DEBUG_TYPE_DEPRECATED_BEHAVIOR: std::cout << "Type: Deprecated Behaviour" << std::endl; break;
+        case GL_DEBUG_TYPE_UNDEFINED_BEHAVIOR:  std::cout << "Type: Undefined Behaviour"; break; 
+        case GL_DEBUG_TYPE_PORTABILITY:         std::cout << "Type: Portability" << std::endl; break;
+        case GL_DEBUG_TYPE_PERFORMANCE:         std::cout << "Type: Performance" << std::endl; break;
+        case GL_DEBUG_TYPE_MARKER:              std::cout << "Type: Marker" << std::endl; break;
+        case GL_DEBUG_TYPE_PUSH_GROUP:          std::cout << "Type: Push Group" << std::endl; break;
+        case GL_DEBUG_TYPE_POP_GROUP:           std::cout << "Type: Pop Group" << std::endl; break;
+        case GL_DEBUG_TYPE_OTHER:               std::cout << "Type: Other" << std::endl; break;
+    }
+    
+    switch (severity)
+    {
+        case GL_DEBUG_SEVERITY_HIGH:         std::cout << "Severity: High" << std::endl; break;
+        case GL_DEBUG_SEVERITY_MEDIUM:       std::cout << "Severity: Medium" << std::endl; break;
+        case GL_DEBUG_SEVERITY_LOW:          std::cout << "Severity: Low" << std::endl; break;
+        case GL_DEBUG_SEVERITY_NOTIFICATION: std::cout << "Severity: Notification" << std::endl; break;
+    }
+
+    std::cout << std::endl;
+}
+
 int main(int argc, char** argv) try {
     auto config = mcc::Config(argc, argv);
 
@@ -45,6 +96,10 @@ int main(int argc, char** argv) try {
         std::cerr << "Failed to initialize GLFW:\nglfwInit() didn't return GLFW_TRUE\n";
         std::abort();
     }
+
+#ifndef NDEBUG
+    glfwWindowHint(GLFW_OPENGL_DEBUG_CONTEXT, GL_TRUE);
+#endif
 
     auto win = glfwCreateWindow(
         int(config["window.width"].unwrap().as_integer().unwrap()),
@@ -67,6 +122,15 @@ int main(int argc, char** argv) try {
         std::abort();
     }
 
+    GLint flags;
+    glGetIntegerv(GL_CONTEXT_FLAGS, &flags);
+    if (flags & GL_CONTEXT_FLAG_DEBUG_BIT) {
+        glEnable(GL_DEBUG_OUTPUT);
+        glEnable(GL_DEBUG_OUTPUT_SYNCHRONOUS);
+        glDebugMessageCallback(gl_debug_output, nullptr);
+        glDebugMessageControl(GL_DONT_CARE, GL_DONT_CARE, GL_DONT_CARE, 0, nullptr, GL_TRUE);
+    }
+
     // Setup camera
     camera = new mcc::ui::Camera(
         float(glm::radians(config["camera.fov"].unwrap().as_double().unwrap())),
@@ -82,14 +146,15 @@ int main(int argc, char** argv) try {
     glfwSwapInterval(1);
 
     // Load game
-    auto registry = mcc::map::Block::Registry();
-    auto terrain = mcc::map::Terrain(mcc::map::Generation(0), registry);
+    auto generator = mcc::map::Generator(0, 32);
+    auto terrain = mcc::map::Terrain(generator);
     auto view_distance = int(config["camera.view_distance"].unwrap().as_integer().unwrap());
 
     // Prepare rendering
     glEnable(GL_DEPTH_TEST);
     glEnable(GL_CULL_FACE);
     glFrontFace(GL_CCW);
+    glPolygonMode(GL_FRONT_AND_BACK, GL_LINE);
 
     // Main loop
     while (!glfwWindowShouldClose(win)) {
@@ -116,24 +181,8 @@ int main(int argc, char** argv) try {
         glClearColor(0.1f, 0.5f, 0.8f, 1.0f);
         glClear(GL_COLOR_BUFFER_BIT | GL_DEPTH_BUFFER_BIT);
 
-        terrain.update(dt);
-        
-        glm::i64vec3 chunk_pos = glm::round(camera->get_position() / glm::vec3(mcc::map::Chunk::Size * mcc::map::Block::Size));
-        
-        /*auto& chunk = terrain.reference(glm::i64vec3(0, -1, 0), 2.5f);
-        terrain.dereference(chunk);*/
-
-        for (int x = -view_distance; x <= view_distance; ++x) {
-            for (int y = -view_distance; y <= view_distance; ++y) {
-                for (int z = -view_distance; z <= view_distance; ++z) {
-                    auto& chunk = terrain.reference(chunk_pos + glm::i64vec3(x, y, z), 2.5f);
-                    terrain.dereference(chunk);
-                }
-            }
-        }
-
-        glm::mat4 vp = camera->get_projection() * camera->get_view();
-        terrain.draw(vp);
+        terrain.update(*camera);
+        terrain.draw(*camera);
 
         glfwSwapBuffers(win);
     }

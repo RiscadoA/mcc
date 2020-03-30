@@ -6,18 +6,20 @@
 #include <mcc/gl/vertex_buffer.hpp>
 
 namespace mcc::gl {
-
-
     class Attribute {
     public:
         enum class Type {
+            U8,
+            I8,
+            NU8, // Normalized U8
+            NI8, // Normalized I8
+
             U32,
             I32,
             NU32, // Normalized U32
             NI32, // Normalized I32
             
-            F32,
-            
+            F32,        
         };
 
         inline Attribute(VertexBuffer& buffer, size_t stride, size_t offset, int size, Type type, unsigned int shader_location) : 
