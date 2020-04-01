@@ -10,11 +10,14 @@
 #include <mcc/map/terrain.hpp>
 
 #include <iostream>
+#include <chrono>
 
 mcc::ui::Camera* camera;
 float dt = 1.0f / 60.0f;
 float camera_sensitivity = 0.1f;
 float camera_speed = 1.0f;
+const glm::vec4 sky_color = { 0.1f, 0.5f, 0.8f, 1.0f };
+bool wireframe = false;
 
 void glfw_error_callback(int err, const char* msg) {
     std::cerr << "GLFW error callback called with code '" << err << "':\n" << msg << '\n';
@@ -34,6 +37,11 @@ void glfw_cursor_pos_callback(GLFWwindow* win, double x, double y) {
     py = y;
 }
 
+void glfw_key_callback(GLFWwindow* win, int key, int, int action, int) {
+    if (action == GLFW_PRESS && key == GLFW_KEY_F1) {
+        wireframe = !wireframe;
+    }
+}
 
 void APIENTRY gl_debug_output(
     GLenum source,
@@ -105,7 +113,7 @@ int main(int argc, char** argv) try {
         int(config["window.width"].unwrap().as_integer().unwrap()),
         int(config["window.height"].unwrap().as_integer().unwrap()),
         "MCC",
-        nullptr,
+        glfwGetPrimaryMonitor(),
         nullptr
     );
 
@@ -137,24 +145,131 @@ int main(int argc, char** argv) try {
         float(config["window.width"].unwrap().as_double().unwrap() / config["window.height"].unwrap().as_double().unwrap()),
         float(config["camera.z_near"].unwrap().as_double().unwrap()),
         float(config["camera.z_far"].unwrap().as_double().unwrap()),
-        glm::vec3(0.0f, 0.5f, -1.0f),
+        glm::vec3(0.0f, 50.0f, -1.0f),
         glm::vec2(0.0f, 0.0f)
     );
 
     glfwSetCursorPosCallback(win, glfw_cursor_pos_callback);
+    glfwSetKeyCallback(win, glfw_key_callback);
     glfwSetInputMode(win, GLFW_CURSOR, GLFW_CURSOR_DISABLED);
     glfwSwapInterval(1);
 
     // Load game
-    auto generator = mcc::map::Generator(0, 32);
+    auto generator = mcc::map::Generator(0, 16);
     auto terrain = mcc::map::Terrain(generator);
-    auto view_distance = int(config["camera.view_distance"].unwrap().as_integer().unwrap());
 
     // Prepare rendering
     glEnable(GL_DEPTH_TEST);
     glEnable(GL_CULL_FACE);
     glFrontFace(GL_CCW);
-    glPolygonMode(GL_FRONT_AND_BACK, GL_LINE);
+  
+    // Prepare textures and framebuffer
+    GLuint ss_diff, ss_depth;
+    glGenTextures(1, &ss_diff);
+    glBindTexture(GL_TEXTURE_2D, ss_diff);
+    glTexImage2D(
+        GL_TEXTURE_2D, 0, GL_RGB,
+        int(config["window.width"].unwrap().as_integer().unwrap()),
+        int(config["window.height"].unwrap().as_integer().unwrap()),
+        0, GL_RGB, GL_UNSIGNED_BYTE, nullptr
+    );
+    glTexParameteri(GL_TEXTURE_2D, GL_TEXTURE_MAG_FILTER, GL_LINEAR);
+	glTexParameteri(GL_TEXTURE_2D, GL_TEXTURE_MIN_FILTER, GL_LINEAR);
+	glTexParameteri(GL_TEXTURE_2D, GL_TEXTURE_WRAP_S, GL_CLAMP_TO_EDGE);
+	glTexParameteri(GL_TEXTURE_2D, GL_TEXTURE_WRAP_T, GL_CLAMP_TO_EDGE);
+    
+    glGenTextures(1, &ss_depth);
+    glBindTexture(GL_TEXTURE_2D, ss_depth);
+    glTexImage2D(
+        GL_TEXTURE_2D, 0, GL_DEPTH_COMPONENT,
+        int(config["window.width"].unwrap().as_integer().unwrap()),
+        int(config["window.height"].unwrap().as_integer().unwrap()),
+        0, GL_DEPTH_COMPONENT, GL_UNSIGNED_BYTE, nullptr
+    );
+    glTexParameteri(GL_TEXTURE_2D, GL_TEXTURE_MAG_FILTER, GL_LINEAR);
+	glTexParameteri(GL_TEXTURE_2D, GL_TEXTURE_MIN_FILTER, GL_LINEAR);
+	glTexParameteri(GL_TEXTURE_2D, GL_TEXTURE_WRAP_S, GL_CLAMP_TO_EDGE);
+	glTexParameteri(GL_TEXTURE_2D, GL_TEXTURE_WRAP_T, GL_CLAMP_TO_EDGE);
+
+    GLuint ss_fbo;
+    glGenFramebuffers(1, &ss_fbo);
+    glBindFramebuffer(GL_FRAMEBUFFER, ss_fbo);
+    glFramebufferTexture2D(GL_FRAMEBUFFER, GL_COLOR_ATTACHMENT0, GL_TEXTURE_2D, ss_diff, 0);  
+    glFramebufferTexture2D(GL_FRAMEBUFFER, GL_DEPTH_ATTACHMENT, GL_TEXTURE_2D, ss_depth, 0);  
+    if (glCheckFramebufferStatus(GL_FRAMEBUFFER) != GL_FRAMEBUFFER_COMPLETE) {
+        std::abort();
+    }
+
+    // Prepare screen space shader
+    auto ss_shader = mcc::gl::Shader::create(R"(
+        #version 330 core
+
+        layout (location = 0) in vec2 vert_pos;
+        layout (location = 1) in vec2 vert_uv;
+
+        out vec2 frag_uv;
+
+        void main() {
+            gl_Position = vec4(vert_pos, 0.0f, 1.0f);
+            frag_uv = vert_uv;            
+        }
+
+    )", R"(
+        #version 330 core
+
+        in vec2 frag_uv;
+
+        out vec4 color;
+
+        uniform vec4 sky_color;
+        uniform sampler2D diffuse_tex;
+        uniform sampler2D depth_tex;
+        uniform float z_near;
+        uniform float z_far;
+
+        void main() {
+            float depth = 2.0 * texture(depth_tex, frag_uv).x - 1.0;
+            depth = 2.0 * z_near * z_far / (z_far + z_near - depth * (z_far - z_near));
+            vec4 diffuse = texture(diffuse_tex, frag_uv);
+            color = mix(diffuse, sky_color, depth / z_far);
+        }
+    )").unwrap();
+
+    // Prepare screen space quad
+    struct {
+        mcc::gl::VertexArray va;
+        mcc::gl::VertexBuffer vb;
+    } ss_quad;
+
+    {
+        float data[] = {
+            -1.0f, -1.0f, 0.0f, 0.0f,
+            +1.0f, -1.0f, 1.0f, 0.0f,
+            +1.0f, +1.0f, 1.0f, 1.0f,
+            +1.0f, +1.0f, 1.0f, 1.0f,
+            -1.0f, +1.0f, 0.0f, 1.0f,
+            -1.0f, -1.0f, 0.0f, 0.0f,
+        };
+
+        ss_quad.vb = mcc::gl::VertexBuffer::create(sizeof(data), data, mcc::gl::Usage::Static).unwrap();
+        ss_quad.va = mcc::gl::VertexArray::create({
+            mcc::gl::Attribute(
+                ss_quad.vb,
+                sizeof(float) * 4, 0 * sizeof(float),
+                2, mcc::gl::Attribute::Type::F32,
+                0
+            ),
+            mcc::gl::Attribute(
+                ss_quad.vb,
+                sizeof(float) * 4, 2 * sizeof(float),
+                2, mcc::gl::Attribute::Type::F32,
+                1
+            )        
+        }).unwrap();
+    }
+
+    glEnable(GL_BLEND);
+    glBlendFunc(GL_SRC_ALPHA, GL_ONE_MINUS_SRC_ALPHA);  
 
     // Main loop
     while (!glfwWindowShouldClose(win)) {
@@ -176,13 +291,49 @@ int main(int argc, char** argv) try {
         } else if (glfwGetKey(win, GLFW_KEY_E) == GLFW_PRESS) {
             camera->move(camera->get_up() * dt * camera_speed);
         }
+
         camera->update();
 
-        glClearColor(0.1f, 0.5f, 0.8f, 1.0f);
-        glClear(GL_COLOR_BUFFER_BIT | GL_DEPTH_BUFFER_BIT);
+        glBindFramebuffer(GL_FRAMEBUFFER, ss_fbo);
+        GLuint draw_buffers[] = { GL_COLOR_ATTACHMENT0 };
+        glDrawBuffers(1, &draw_buffers[0]);
 
+        glEnable(GL_DEPTH_TEST);
+        glPolygonMode(GL_FRONT_AND_BACK, wireframe ? GL_LINE : GL_FILL);
+        glClearColor(sky_color.r, sky_color.g, sky_color.b, sky_color.a);
+        glClear(GL_COLOR_BUFFER_BIT | GL_DEPTH_BUFFER_BIT);
+        
+        auto begin = std::chrono::steady_clock::now();
+        
         terrain.update(*camera);
+        
+        auto end = std::chrono::steady_clock::now();
+        std::cout << "Terrain update: " << std::chrono::duration_cast<std::chrono::milliseconds>(end - begin).count() << "ms\n";
+        begin = end;
+        
         terrain.draw(*camera);
+
+        end = std::chrono::steady_clock::now();
+        std::cout << "Terrain draw: " << std::chrono::duration_cast<std::chrono::milliseconds>(end - begin).count() << "ms" << std::endl;
+
+        glBindFramebuffer(GL_FRAMEBUFFER, 0);
+        glDisable(GL_DEPTH_TEST);
+        glPolygonMode(GL_FRONT_AND_BACK, GL_FILL);
+        ss_shader.bind();
+
+        glUniform1i(ss_shader.get_uniform_location("diffuse_tex").unwrap(), 0);
+        glUniform1i(ss_shader.get_uniform_location("depth_tex").unwrap(), 1);
+        glUniform1f(ss_shader.get_uniform_location("z_near").unwrap(), float(config["camera.z_near"].unwrap().as_double().unwrap()));
+        glUniform1f(ss_shader.get_uniform_location("z_far").unwrap(), float(config["camera.z_far"].unwrap().as_double().unwrap()));
+        glUniform4f(ss_shader.get_uniform_location("sky_color").unwrap(), sky_color.r, sky_color.g, sky_color.b, sky_color.a);
+
+        glActiveTexture(GL_TEXTURE0);
+        glBindTexture(GL_TEXTURE_2D, ss_diff);
+        glActiveTexture(GL_TEXTURE1);
+        glBindTexture(GL_TEXTURE_2D, ss_depth);
+
+        ss_quad.va.bind();
+        glDrawArrays(GL_TRIANGLES, 0, 6);
 
         glfwSwapBuffers(win);
     }

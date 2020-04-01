@@ -45,6 +45,16 @@ void Camera::set_z_far(float z_far) {
     this->z_far = z_far;
 }
 
+bool Camera::intersects_frustum(const glm::vec3& point, float radius) const {
+    for (int i = 0; i < 6; ++i) {
+        float distance = glm::dot(this->frustum_planes[i], glm::vec4(point, 1.0f)) / glm::length(glm::vec3(this->frustum_planes[i]));
+        if (distance + radius < 0) {
+            return false;
+        }
+    }
+    return true;
+}
+
 void Camera::update() {
     // Build direction from rotation
     this->forward = glm::normalize(glm::vec3(
@@ -57,4 +67,13 @@ void Camera::update() {
     
     this->proj = glm::perspective(this->fov, this->aspect_ratio, this->z_near, this->z_far);
     this->view = glm::lookAt(this->pos, this->pos + this->forward, this->get_world_up());
+
+    // Extract frustum planes
+    auto m = glm::transpose(this->proj * this->view);
+    this->frustum_planes[0] = m[3] + m[0]; // Left
+    this->frustum_planes[1] = m[3] - m[0]; // Right
+    this->frustum_planes[2] = m[3] + m[1]; // Bottom
+    this->frustum_planes[3] = m[3] - m[1]; // Top
+    this->frustum_planes[4] = m[3] + m[2]; // Near
+    this->frustum_planes[5] = m[3] - m[2]; // Far
 }

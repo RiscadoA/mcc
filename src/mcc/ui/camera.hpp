@@ -19,6 +19,9 @@ namespace mcc::ui {
         void set_z_near(float z_near);
         void set_z_far(float z_far);
 
+        // Checks if a sphere intersects the camera frustum
+        bool intersects_frustum(const glm::vec3& point, float radius) const;
+
         // Updates the matrices, must be called after changing the camera's transform or properties
         void update();
 
@@ -48,5 +51,7 @@ namespace mcc::ui {
 
         glm::vec3 pos, forward, right, up;
         glm::vec2 rot;
+
+        glm::vec4 frustum_planes[6];
     };
 }

@@ -70,3 +70,5 @@ target_link_libraries(mcc-game PRIVATE glm)
 find_package(glfw3 REQUIRED)
 target_link_libraries(mcc-game PRIVATE glfw)
 
+find_package(freetype CONFIG REQUIRED)
+target_link_libraries(mcc-game PRIVATE freetype)

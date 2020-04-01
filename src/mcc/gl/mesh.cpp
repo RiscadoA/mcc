@@ -11,12 +11,14 @@ struct Vertex {
 };
 
 void Mesh::draw() {
-    this->va.bind();
-    this->ib.bind();
-    glDrawElements(GL_TRIANGLES, this->index_count, GL_UNSIGNED_INT, nullptr);
+    if (this->index_count > 0) {
+        this->va.bind();
+        this->ib.bind();
+        glDrawElements(GL_TRIANGLES, this->index_count, GL_UNSIGNED_INT, nullptr);
+    }
 }
 
-void Mesh::build_mesh(const glm::u8vec4* voxels, glm::uvec3 sz, float vx_sz, bool generate_borders) {
+void Mesh::build_buffers(const glm::u8vec4* voxels, glm::uvec3 sz, float vx_sz, bool generate_borders) {
     std::vector<Vertex> verts;
     std::vector<unsigned int> indices;
     std::vector<glm::u8vec4> mask;
@@ -36,8 +38,7 @@ void Mesh::build_mesh(const glm::u8vec4* voxels, glm::uvec3 sz, float vx_sz, boo
             mask.resize(sz[u] * sz[v]);
 
             for (x[d] = -1; x[d] < int(sz[d]);) {
-                int n = 0;
-                
+                int n = 0;              
 
                 // Create mask
                 if (generate_borders) {
@@ -52,6 +53,7 @@ void Mesh::build_mesh(const glm::u8vec4* voxels, glm::uvec3 sz, float vx_sz, boo
                                             glm::u8vec4(0, 0, 0, 0) :
                                             voxels[x.x * sz.y * sz.z + x.y * sz.z + x.z];
                             } else if (voxels[x.x * sz.y * sz.z + x.y * sz.z + x.z] != voxels[(x.x + q.x) * sz.y * sz.z + (x.y + q.y) * sz.z + (x.z + q.z)]) {
+                            //} else if (voxels[x.x * sz.y * sz.z + x.y * sz.z + x.z].a != 255 || voxels[(x.x + q.x) * sz.y * sz.z + (x.y + q.y) * sz.z + (x.z + q.z)].a != 255) {
                                 mask[n++] = back_face ?
                                             voxels[(x.x + q.x) * sz.y * sz.z + (x.y + q.y) * sz.z + (x.z + q.z)] :
                                             voxels[x.x * sz.y * sz.z + x.y * sz.z + x.z];
@@ -73,8 +75,7 @@ void Mesh::build_mesh(const glm::u8vec4* voxels, glm::uvec3 sz, float vx_sz, boo
                             }
                         }
                     }
-                }
-                
+                }               
                 
                 ++x[d];
                 n = 0;
@@ -99,7 +100,7 @@ void Mesh::build_mesh(const glm::u8vec4* voxels, glm::uvec3 sz, float vx_sz, boo
                                 }
                             }
 
-                            if (mask[n].a == 255) {
+                            if (mask[n].a != 0) {
                                 x[u] = i;
                                 x[v] = j;
 
@@ -151,32 +152,38 @@ void Mesh::build_mesh(const glm::u8vec4* voxels, glm::uvec3 sz, float vx_sz, boo
         }
     } while(back_face != true);
 
-    // Create index buffer
     this->index_count = int(indices.size());
-    this->ib = gl::IndexBuffer::create(indices.size() * sizeof(unsigned int), &indices[0], gl::Usage::Static).unwrap();
+    if (this->index_count > 0) {
+        // Create index buffer
+        this->ib = gl::IndexBuffer::create(indices.size() * sizeof(unsigned int), &indices[0], gl::Usage::Static).unwrap();
 
-    // Create vertex buffer
-    this->vb = gl::VertexBuffer::create(verts.size() * sizeof(Vertex), &verts[0], gl::Usage::Static).unwrap();
+        // Create vertex buffer
+        this->vb = gl::VertexBuffer::create(verts.size() * sizeof(Vertex), &verts[0], gl::Usage::Static).unwrap();
+    }
+}
 
-    // Create vertex array
-    this->va = gl::VertexArray::create({
-        gl::Attribute(
-            this->vb,
-            sizeof(Vertex), offsetof(Vertex, Vertex::pos),
-            3, gl::Attribute::Type::F32,
-            0
-        ),
-        gl::Attribute(
-            this->vb,
-            sizeof(Vertex), offsetof(Vertex, Vertex::normal),
-            3, gl::Attribute::Type::F32,
-            1
-        ),
-        gl::Attribute(
-            this->vb,
-            sizeof(Vertex), offsetof(Vertex, Vertex::color),
-            4, gl::Attribute::Type::NU8,
-            2
-        )
-    }).unwrap();
+void Mesh::build_va() {
+    if (this->index_count > 0) {
+        // Create vertex array
+        this->va = gl::VertexArray::create({
+            gl::Attribute(
+                this->vb,
+                sizeof(Vertex), offsetof(Vertex, Vertex::pos),
+                3, gl::Attribute::Type::F32,
+                0
+            ),
+            gl::Attribute(
+                this->vb,
+                sizeof(Vertex), offsetof(Vertex, Vertex::normal),
+                3, gl::Attribute::Type::F32,
+                1
+            ),
+            gl::Attribute(
+                this->vb,
+                sizeof(Vertex), offsetof(Vertex, Vertex::color),
+                4, gl::Attribute::Type::NU8,
+                2
+            )
+        }).unwrap();
+    }
 }
