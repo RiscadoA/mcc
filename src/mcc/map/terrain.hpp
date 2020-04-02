@@ -25,7 +25,7 @@ namespace mcc::map {
     public:
         static constexpr float VoxelSize = 1.0f;
 
-        Terrain(const Generator& generator);
+        Terrain(const Generator& generator, const gl::Shader& shader);
         ~Terrain();
         
         // Loads new chunks and unloads old ones
@@ -39,8 +39,12 @@ namespace mcc::map {
     private:
         static void load_thread_func(Terrain& terrain, void* context);
 
+        // Main chunks
+        //std::queue<Chunk*> va_queue;
+        //std::priority_queue<std::pair<float, Chunk*>> vb_queue; // 
+
         const Generator& generator;
-        gl::Shader shader;
+        const gl::Shader& shader;
         
         std::map<glm::i64vec3, Chunk*> map;
 

@@ -18,7 +18,7 @@ namespace mcc::gl {
         Result<void, std::string> update(size_t offset, size_t size, const void* data);
         Result<void*, std::string> map();
         void unmap();
-        void bind();
+        void bind() const;
 
     private:
         IndexBuffer(unsigned int ibo);

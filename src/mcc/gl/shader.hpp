@@ -14,9 +14,9 @@ namespace mcc::gl {
         Shader& operator=(Shader&& rhs);
         ~Shader();
 
-        void bind();
-        Result<unsigned int, std::string> get_attribute_location(const char* name);
-        Result<unsigned int, std::string> get_uniform_location(const char* name);
+        void bind() const;
+        Result<unsigned int, std::string> get_attribute_location(const char* name) const;
+        Result<unsigned int, std::string> get_uniform_location(const char* name) const;
 
     private:
         Shader(unsigned int program, unsigned int vs, unsigned int fs);

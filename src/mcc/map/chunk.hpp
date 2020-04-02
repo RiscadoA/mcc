@@ -9,13 +9,13 @@
 #include <mcc/gl/mesh.hpp>
 
 namespace mcc::map {
-    class Chunk : public gl::Mesh {
+    class Chunk {
     public:
         Chunk(const Generator& generator, glm::i64vec3 position); // Initializes an unloaded chunk.
         ~Chunk();
 
         void load(); // Loads the chunk at a certain level of detail
-        virtual void draw() override;
+        void draw();
 
         inline const glm::i64vec3& get_position() const { return this->position; }
         bool is_loaded();
@@ -29,5 +29,7 @@ namespace mcc::map {
         std::vector<glm::u8vec4> voxels;
         std::atomic<bool> loaded, has_fence;
         GLsync sync;
+
+        gl::Mesh mesh;
     };
 }

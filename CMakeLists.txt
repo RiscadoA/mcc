@@ -7,6 +7,8 @@ set (SOURCE_FILES
 	"src/mcc/config.hpp"
 	"src/mcc/config.cpp"
 
+	"src/mcc/memory/endianness.hpp"
+	
 	"src/mcc/gl/usage.hpp"
 	"src/mcc/gl/shader.hpp"
 	"src/mcc/gl/shader.cpp"
@@ -18,6 +20,9 @@ set (SOURCE_FILES
 	"src/mcc/gl/vertex_array.cpp"
 	"src/mcc/gl/mesh.hpp"
 	"src/mcc/gl/mesh.cpp"
+
+	"src/mcc/data/model.hpp"
+	"src/mcc/data/model.cpp"
 
 	"src/mcc/entity/entity.hpp"
 	"src/mcc/entity/entity.cpp"

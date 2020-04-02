@@ -52,7 +52,7 @@ namespace mcc::gl {
 
         static Result<VertexArray, std::string> create(std::initializer_list<Attribute> attributes);
         
-        void bind();
+        void bind() const;
 
     private:
         friend class VertexArray;

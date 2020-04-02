@@ -10,7 +10,15 @@ struct Vertex {
     glm::u8vec4 color;
 };
 
-void Mesh::draw() {
+Mesh::Mesh(Mesh&& rhs) {
+    this->va = std::move(rhs.va);
+    this->vb = std::move(rhs.vb);
+    this->ib = std::move(rhs.ib);
+    this->index_count = rhs.index_count;
+    rhs.index_count = 0;
+}
+
+void Mesh::draw() const {
     if (this->index_count > 0) {
         this->va.bind();
         this->ib.bind();

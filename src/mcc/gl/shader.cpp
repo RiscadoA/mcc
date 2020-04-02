@@ -103,11 +103,11 @@ Shader::~Shader() {
     }
 }
 
-void Shader::bind() {
+void Shader::bind() const {
     glUseProgram(this->program);
 }
 
-Result<unsigned int, std::string> Shader::get_attribute_location(const char* name) {
+Result<unsigned int, std::string> Shader::get_attribute_location(const char* name) const {
     auto location = glGetAttribLocation(this->program, name);
     if (location < 0) {
         return Result<unsigned int, std::string>::error("Shader::get_attribute_location() failed:\nNo attribute '" + std::string(name) + "' found");
@@ -115,7 +115,7 @@ Result<unsigned int, std::string> Shader::get_attribute_location(const char* nam
     return Result<unsigned int, std::string>::success(unsigned int(location));
 }
 
-Result<unsigned int, std::string> Shader::get_uniform_location(const char* name) {
+Result<unsigned int, std::string> Shader::get_uniform_location(const char* name) const {
     auto location = glGetUniformLocation(this->program, name);
     if (location < 0) {
         return Result<unsigned int, std::string>::error("Shader::get_uniform_location() failed:\nNo uniform '" + std::string(name) + "' found");

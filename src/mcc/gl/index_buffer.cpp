@@ -91,6 +91,6 @@ Result<void, std::string> IndexBuffer::update(size_t offset, size_t size, const 
     return Result<void, std::string>::success();
 }
 
-void IndexBuffer::bind() {
+void IndexBuffer::bind() const {
     glBindBuffer(GL_ELEMENT_ARRAY_BUFFER, this->ibo);
 }

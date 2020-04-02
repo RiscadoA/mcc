@@ -124,7 +124,7 @@ VertexArray::~VertexArray() {
     }
 }
 
-void VertexArray::bind() {
+void VertexArray::bind() const {
 #ifndef NDEBUG
     if (this->vao == 0) {
         std::abort(); // This shouldn't happen

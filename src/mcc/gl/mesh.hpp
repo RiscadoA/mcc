@@ -8,14 +8,15 @@
 #include <mcc/gl/index_buffer.hpp>
 
 namespace mcc::gl {
-    class Mesh {
+    class Mesh final {
     public:
         Mesh() = default;
-        virtual ~Mesh() = default;
+        Mesh(const Mesh&) = delete;
+        Mesh(Mesh&& rhs);
+        ~Mesh() = default;
 
-        virtual void draw();
+        void draw() const;
 
-    protected:
         void build_buffers(const glm::u8vec4* voxels, glm::uvec3 sz, float vx_sz, bool generate_borders = true);
         void build_va();
 

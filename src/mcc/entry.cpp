@@ -2,15 +2,18 @@
 
 #include <GL/glew.h>
 #include <GLFW/glfw3.h>
+#include <glm/gtc/matrix_transform.hpp>
 
 #include <mcc/gl/shader.hpp>
 #include <mcc/gl/vertex_array.hpp>
 #include <mcc/ui/camera.hpp>
+#include <mcc/data/model.hpp>
 
 #include <mcc/map/terrain.hpp>
 
 #include <iostream>
 #include <chrono>
+#include <random>
 
 mcc::ui::Camera* camera;
 float dt = 1.0f / 60.0f;
@@ -53,9 +56,9 @@ void APIENTRY gl_debug_output(
     const void *userParam) {
 
     // Ignore non-significant error/warning codes
-    /*if(id == 131169 || id == 131185 || id == 131218 || id == 131204) {
+    if(id == 131169 || id == 131185 || id == 131218 || id == 131204) {
         return;
-    }*/
+    }
 
     std::cerr << "OpenGL debug message (" << id << "): " << message << std::endl;
 
@@ -113,7 +116,7 @@ int main(int argc, char** argv) try {
         int(config["window.width"].unwrap().as_integer().unwrap()),
         int(config["window.height"].unwrap().as_integer().unwrap()),
         "MCC",
-        glfwGetPrimaryMonitor(),
+        nullptr, //glfwGetPrimaryMonitor(),
         nullptr
     );
 
@@ -145,7 +148,7 @@ int main(int argc, char** argv) try {
         float(config["window.width"].unwrap().as_double().unwrap() / config["window.height"].unwrap().as_double().unwrap()),
         float(config["camera.z_near"].unwrap().as_double().unwrap()),
         float(config["camera.z_far"].unwrap().as_double().unwrap()),
-        glm::vec3(0.0f, 50.0f, -1.0f),
+        glm::vec3(0.0f, 0.0f, -10.0f),
         glm::vec2(0.0f, 0.0f)
     );
 
@@ -153,31 +156,49 @@ int main(int argc, char** argv) try {
     glfwSetKeyCallback(win, glfw_key_callback);
     glfwSetInputMode(win, GLFW_CURSOR, GLFW_CURSOR_DISABLED);
     glfwSwapInterval(1);
-
-    // Load game
-    auto generator = mcc::map::Generator(0, 16);
-    auto terrain = mcc::map::Terrain(generator);
-
-    // Prepare rendering
-    glEnable(GL_DEPTH_TEST);
-    glEnable(GL_CULL_FACE);
-    glFrontFace(GL_CCW);
   
-    // Prepare textures and framebuffer
-    GLuint ss_diff, ss_depth;
-    glGenTextures(1, &ss_diff);
-    glBindTexture(GL_TEXTURE_2D, ss_diff);
+    // Prepare textures and framebuffer for GBuffer
+    GLuint ss_fbo;
+    glGenFramebuffers(1, &ss_fbo);
+    glBindFramebuffer(GL_FRAMEBUFFER, ss_fbo);
+    
+    GLuint ss_albedo, ss_position, ss_normal, ss_depth;
+    glGenTextures(1, &ss_albedo);
+    glBindTexture(GL_TEXTURE_2D, ss_albedo);
     glTexImage2D(
         GL_TEXTURE_2D, 0, GL_RGB,
         int(config["window.width"].unwrap().as_integer().unwrap()),
         int(config["window.height"].unwrap().as_integer().unwrap()),
         0, GL_RGB, GL_UNSIGNED_BYTE, nullptr
     );
-    glTexParameteri(GL_TEXTURE_2D, GL_TEXTURE_MAG_FILTER, GL_LINEAR);
-	glTexParameteri(GL_TEXTURE_2D, GL_TEXTURE_MIN_FILTER, GL_LINEAR);
-	glTexParameteri(GL_TEXTURE_2D, GL_TEXTURE_WRAP_S, GL_CLAMP_TO_EDGE);
-	glTexParameteri(GL_TEXTURE_2D, GL_TEXTURE_WRAP_T, GL_CLAMP_TO_EDGE);
+    glTexParameteri(GL_TEXTURE_2D, GL_TEXTURE_MAG_FILTER, GL_NEAREST);
+	glTexParameteri(GL_TEXTURE_2D, GL_TEXTURE_MIN_FILTER, GL_NEAREST);
+    glFramebufferTexture2D(GL_FRAMEBUFFER, GL_COLOR_ATTACHMENT0, GL_TEXTURE_2D, ss_albedo, 0);
+
+    glGenTextures(1, &ss_position);
+    glBindTexture(GL_TEXTURE_2D, ss_position);
+    glTexImage2D(
+        GL_TEXTURE_2D, 0, GL_RGB16F,
+        int(config["window.width"].unwrap().as_integer().unwrap()),
+        int(config["window.height"].unwrap().as_integer().unwrap()),
+        0, GL_RGB, GL_FLOAT, nullptr
+    );
+    glTexParameteri(GL_TEXTURE_2D, GL_TEXTURE_MAG_FILTER, GL_NEAREST);
+	glTexParameteri(GL_TEXTURE_2D, GL_TEXTURE_MIN_FILTER, GL_NEAREST);
+    glFramebufferTexture2D(GL_FRAMEBUFFER, GL_COLOR_ATTACHMENT1, GL_TEXTURE_2D, ss_position, 0);
     
+    glGenTextures(1, &ss_normal);
+    glBindTexture(GL_TEXTURE_2D, ss_normal);
+    glTexImage2D(
+        GL_TEXTURE_2D, 0, GL_RGB,
+        int(config["window.width"].unwrap().as_integer().unwrap()),
+        int(config["window.height"].unwrap().as_integer().unwrap()),
+        0, GL_RGB, GL_FLOAT, nullptr
+    );
+    glTexParameteri(GL_TEXTURE_2D, GL_TEXTURE_MAG_FILTER, GL_NEAREST);
+	glTexParameteri(GL_TEXTURE_2D, GL_TEXTURE_MIN_FILTER, GL_NEAREST);
+    glFramebufferTexture2D(GL_FRAMEBUFFER, GL_COLOR_ATTACHMENT2, GL_TEXTURE_2D, ss_normal, 0);
+
     glGenTextures(1, &ss_depth);
     glBindTexture(GL_TEXTURE_2D, ss_depth);
     glTexImage2D(
@@ -186,19 +207,54 @@ int main(int argc, char** argv) try {
         int(config["window.height"].unwrap().as_integer().unwrap()),
         0, GL_DEPTH_COMPONENT, GL_UNSIGNED_BYTE, nullptr
     );
-    glTexParameteri(GL_TEXTURE_2D, GL_TEXTURE_MAG_FILTER, GL_LINEAR);
-	glTexParameteri(GL_TEXTURE_2D, GL_TEXTURE_MIN_FILTER, GL_LINEAR);
-	glTexParameteri(GL_TEXTURE_2D, GL_TEXTURE_WRAP_S, GL_CLAMP_TO_EDGE);
-	glTexParameteri(GL_TEXTURE_2D, GL_TEXTURE_WRAP_T, GL_CLAMP_TO_EDGE);
-
-    GLuint ss_fbo;
-    glGenFramebuffers(1, &ss_fbo);
-    glBindFramebuffer(GL_FRAMEBUFFER, ss_fbo);
-    glFramebufferTexture2D(GL_FRAMEBUFFER, GL_COLOR_ATTACHMENT0, GL_TEXTURE_2D, ss_diff, 0);  
-    glFramebufferTexture2D(GL_FRAMEBUFFER, GL_DEPTH_ATTACHMENT, GL_TEXTURE_2D, ss_depth, 0);  
+    glTexParameteri(GL_TEXTURE_2D, GL_TEXTURE_MAG_FILTER, GL_NEAREST);
+	glTexParameteri(GL_TEXTURE_2D, GL_TEXTURE_MIN_FILTER, GL_NEAREST);
+    glFramebufferTexture2D(GL_FRAMEBUFFER, GL_DEPTH_ATTACHMENT, GL_TEXTURE_2D, ss_depth, 0);
+    
     if (glCheckFramebufferStatus(GL_FRAMEBUFFER) != GL_FRAMEBUFFER_COMPLETE) {
         std::abort();
     }
+
+    // Prepare mesh shader
+    auto mesh_shader = mcc::gl::Shader::create(R"(
+        #version 330 core
+
+        layout (location = 0) in vec3 vert_pos;
+        layout (location = 1) in vec3 vert_normal;
+        layout (location = 2) in vec4 vert_color;
+
+        uniform mat4 model;
+        uniform mat4 vp;
+        
+        out vec3 frag_albedo;
+        out vec3 frag_pos;
+        out vec3 frag_normal;
+
+        void main() {
+            frag_pos = (model * vec4(vert_pos, 1.0f)).xyz;
+            gl_Position = vp * vec4(frag_pos, 1.0f);
+            frag_albedo = vert_color.rgb;
+            frag_normal = vert_normal;
+        }
+
+    )", R"(
+        #version 330 core
+
+        in vec3 frag_albedo;
+        in vec3 frag_pos;
+        in vec3 frag_normal;
+
+        layout (location = 0) out vec3 albedo;
+        layout (location = 1) out vec3 position;
+        layout (location = 2) out vec3 normal;
+
+        void main() {
+            albedo = frag_albedo;
+            position = frag_pos;
+            normal = frag_normal;
+        }
+
+    )").unwrap();
 
     // Prepare screen space shader
     auto ss_shader = mcc::gl::Shader::create(R"(
@@ -217,21 +273,38 @@ int main(int argc, char** argv) try {
     )", R"(
         #version 330 core
 
+        #define PI 3.1415926535897932384626433832795
+
         in vec2 frag_uv;
 
-        out vec4 color;
+        out vec4 frag_color;
 
-        uniform vec4 sky_color;
-        uniform sampler2D diffuse_tex;
-        uniform sampler2D depth_tex;
-        uniform float z_near;
+        uniform sampler2D albedo_tex;
+        uniform sampler2D position_tex;
+        uniform sampler2D normal_tex;
+
+        uniform vec3 sky_color;
+        uniform vec3 camera_position;
         uniform float z_far;
 
+        const vec3 light_dir = normalize(vec3(-0.7, 2.0, -0.5));
+
         void main() {
-            float depth = 2.0 * texture(depth_tex, frag_uv).x - 1.0;
-            depth = 2.0 * z_near * z_far / (z_far + z_near - depth * (z_far - z_near));
-            vec4 diffuse = texture(diffuse_tex, frag_uv);
-            color = mix(diffuse, sky_color, depth / z_far);
+            vec3 albedo = texture(albedo_tex, frag_uv).rgb;
+            vec3 position = texture(position_tex, frag_uv).xyz;
+            vec3 normal = texture(normal_tex, frag_uv).xyz;
+
+            vec3 lighting = albedo * 0.1f;
+            vec3 diffuse = max(dot(normal, light_dir), 0.0f) * albedo;
+            lighting += diffuse;
+
+            if (normal.x == 0.0f && normal.y == 0.0f && normal.z == 0.0f) {
+                lighting = albedo;
+            }
+
+            float depth = min(1.0f, distance(position, camera_position) / z_far);
+            depth = min(1.0f, atanh(depth) / 1.5);
+            frag_color = vec4(mix(lighting, sky_color, depth), 1.0);
         }
     )").unwrap();
 
@@ -268,8 +341,21 @@ int main(int argc, char** argv) try {
         }).unwrap();
     }
 
-    glEnable(GL_BLEND);
-    glBlendFunc(GL_SRC_ALPHA, GL_ONE_MINUS_SRC_ALPHA);  
+    // Load game
+    mcc::data::Model::init(config).unwrap();
+
+    auto generator = mcc::map::Generator(0, 32);
+    auto terrain = mcc::map::Terrain(generator, mesh_shader);
+
+    auto& mesh_1 = mcc::data::Model::get("chr_knight").unwrap().get_mesh("").unwrap();
+    auto& mesh_2 = mcc::data::Model::get("chr_sword").unwrap().get_mesh("").unwrap();
+    auto& mesh_3 = mcc::data::Model::get("monu10").unwrap().get_mesh("").unwrap();
+    auto& mesh_4 = mcc::data::Model::get("teapot").unwrap().get_mesh("").unwrap();
+    auto model_loc = mesh_shader.get_uniform_location("model").unwrap();
+    auto vp_loc = mesh_shader.get_uniform_location("vp").unwrap();
+
+    glEnable(GL_CULL_FACE);
+    glFrontFace(GL_CCW);
 
     // Main loop
     while (!glfwWindowShouldClose(win)) {
@@ -295,13 +381,38 @@ int main(int argc, char** argv) try {
         camera->update();
 
         glBindFramebuffer(GL_FRAMEBUFFER, ss_fbo);
-        GLuint draw_buffers[] = { GL_COLOR_ATTACHMENT0 };
-        glDrawBuffers(1, &draw_buffers[0]);
-
         glEnable(GL_DEPTH_TEST);
         glPolygonMode(GL_FRONT_AND_BACK, wireframe ? GL_LINE : GL_FILL);
-        glClearColor(sky_color.r, sky_color.g, sky_color.b, sky_color.a);
-        glClear(GL_COLOR_BUFFER_BIT | GL_DEPTH_BUFFER_BIT);
+
+        GLuint draw_buffers[] = { GL_COLOR_ATTACHMENT0, GL_COLOR_ATTACHMENT1, GL_COLOR_ATTACHMENT2 };
+        glDrawBuffers(1, &draw_buffers[0]);
+        glClearColor(sky_color.r, sky_color.g, sky_color.b, 1.0f);
+        glClear(GL_COLOR_BUFFER_BIT);
+        glDrawBuffers(2, &draw_buffers[1]);
+        glClearColor(0.0f, 0.0f, 0.0f, 0.0f);
+        glClear(GL_COLOR_BUFFER_BIT);
+        glDrawBuffers(3, &draw_buffers[0]);
+        glClear(GL_DEPTH_BUFFER_BIT);
+
+        /*mesh_shader.bind();
+        
+        glm::mat4 mvp = camera->get_projection() * camera->get_view();
+        mvp = glm::translate(mvp, glm::vec3(0.0f, 35.0f, 15.0f));
+        glUniformMatrix4fv(mvp_loc, 1, GL_FALSE, &mvp[0][0]);
+        mesh_1.draw();
+
+        mvp = glm::translate(mvp, glm::vec3(20.0f, -2.0f, 0.0f));
+        glUniformMatrix4fv(mvp_loc, 1, GL_FALSE, &mvp[0][0]);
+        mesh_2.draw();
+
+
+        mvp = glm::translate(mvp, glm::vec3(-70.0f, 0.0f, 30.0f));
+        glUniformMatrix4fv(mvp_loc, 1, GL_FALSE, &mvp[0][0]);
+        mesh_3.draw();
+
+        mvp = glm::translate(mvp, glm::vec3(100.0f, 0.0f, 0.0f));
+        glUniformMatrix4fv(mvp_loc, 1, GL_FALSE, &mvp[0][0]);
+        mesh_4.draw();*/
         
         auto begin = std::chrono::steady_clock::now();
         
@@ -316,22 +427,24 @@ int main(int argc, char** argv) try {
         end = std::chrono::steady_clock::now();
         std::cout << "Terrain draw: " << std::chrono::duration_cast<std::chrono::milliseconds>(end - begin).count() << "ms" << std::endl;
 
+        // Screen quad rendering
         glBindFramebuffer(GL_FRAMEBUFFER, 0);
         glDisable(GL_DEPTH_TEST);
         glPolygonMode(GL_FRONT_AND_BACK, GL_FILL);
+
         ss_shader.bind();
-
-        glUniform1i(ss_shader.get_uniform_location("diffuse_tex").unwrap(), 0);
-        glUniform1i(ss_shader.get_uniform_location("depth_tex").unwrap(), 1);
-        glUniform1f(ss_shader.get_uniform_location("z_near").unwrap(), float(config["camera.z_near"].unwrap().as_double().unwrap()));
+        glUniform1i(ss_shader.get_uniform_location("albedo_tex").unwrap(), 0);
+        glUniform1i(ss_shader.get_uniform_location("position_tex").unwrap(), 1);
+        glUniform1i(ss_shader.get_uniform_location("normal_tex").unwrap(), 2);
+        glUniform3f(ss_shader.get_uniform_location("sky_color").unwrap(), sky_color.r, sky_color.g, sky_color.b);  
+        glUniform3f(ss_shader.get_uniform_location("camera_position").unwrap(), camera->get_position().x, camera->get_position().y, camera->get_position().z);
         glUniform1f(ss_shader.get_uniform_location("z_far").unwrap(), float(config["camera.z_far"].unwrap().as_double().unwrap()));
-        glUniform4f(ss_shader.get_uniform_location("sky_color").unwrap(), sky_color.r, sky_color.g, sky_color.b, sky_color.a);
-
         glActiveTexture(GL_TEXTURE0);
-        glBindTexture(GL_TEXTURE_2D, ss_diff);
+        glBindTexture(GL_TEXTURE_2D, ss_albedo);
         glActiveTexture(GL_TEXTURE1);
-        glBindTexture(GL_TEXTURE_2D, ss_depth);
-
+        glBindTexture(GL_TEXTURE_2D, ss_position);
+        glActiveTexture(GL_TEXTURE2);
+        glBindTexture(GL_TEXTURE_2D, ss_normal);
         ss_quad.va.bind();
         glDrawArrays(GL_TRIANGLES, 0, 6);
 

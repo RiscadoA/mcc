@@ -98,7 +98,7 @@ void Chunk::load() {
     auto t1 = std::chrono::duration_cast<std::chrono::microseconds>(end - begin).count();
     begin = end;*/
 
-    this->build_buffers(&this->voxels[0], glm::uvec3(csz, csz, csz), Terrain::VoxelSize);
+    this->mesh.build_buffers(&this->voxels[0], glm::uvec3(csz, csz, csz), Terrain::VoxelSize);
     
     this->sync = glFenceSync(GL_SYNC_GPU_COMMANDS_COMPLETE, 0);
     this->has_fence = true;
@@ -111,7 +111,7 @@ void Chunk::load() {
 }
 
 void Chunk::draw() {
-    this->Mesh::draw();
+    this->mesh.draw();
 }
 
 bool Chunk::is_loaded() {
@@ -130,7 +130,7 @@ bool Chunk::is_loaded() {
         std::cerr << "Chunk::is_loaded() failed:\nglClientWaitSync() returned GL_WAIT_FAILED:\nglGetError() returned " << glGetError() << '\n';
         std::abort();
     } else {
-        this->build_va();
+        this->mesh.build_va();
         this->loaded = true;
         return true;
     }

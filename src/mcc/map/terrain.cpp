@@ -5,6 +5,27 @@
 #include <glm/gtc/matrix_transform.hpp>
 #include <set>
 
+/*
+    Loader thread:
+    - loop:
+        - lock queue
+        - pop chunk
+        - unlock queue
+        - load chunk
+    Main thread:
+    - loop:
+        - add new chunks to queue
+        - lock queue
+        - calculate priority for loaded chunks and queued chunks
+        - sort chunk queue
+        - unload/remove from queue all of the chunks with negative priority
+        - unlock queue
+        -------------------------------------
+        - 
+    
+    
+*/
+
 using namespace mcc;
 using namespace mcc::map;
 
@@ -29,44 +50,8 @@ void Terrain::load_thread_func(Terrain& terrain, void* context) {
     }
 }
 
-Terrain::Terrain(const Generator& generator) :
-    generator(generator) {
-
-    this->shader = gl::Shader::create(R"(
-        #version 330 core
-
-        layout (location = 0) in vec3 vert_pos;
-        layout (location = 1) in vec3 vert_normal;
-        layout (location = 2) in vec4 vert_color;
-
-        uniform mat4 mvp;
-        
-        out vec3 frag_normal;
-        out vec4 frag_color;
-
-        void main() {
-            gl_Position = mvp * vec4(vert_pos, 1.0f);
-            frag_normal = vert_normal;
-            frag_color = vert_color;
-        }
-
-    )", R"(
-        #version 330 core
-
-        in vec3 frag_normal;
-        in vec4 frag_color;
-
-        out vec4 color;
-
-        const vec3 light_dir = normalize(vec3(-0.7, 1, -0.5));
-
-        void main() {
-            float ld = max(0.1, dot(light_dir, frag_normal));
-
-            color = vec4(frag_color.rgb * ld, frag_color.a);
-        }
-
-    )").unwrap();
+Terrain::Terrain(const Generator& generator, const gl::Shader& shader) :
+    generator(generator), shader(shader) {
 
     this->thread_stop = false;
     glfwWindowHint(GLFW_VISIBLE, GLFW_FALSE);
@@ -146,9 +131,13 @@ void Terrain::update(const ui::Camera& camera) {
 
 void Terrain::draw(const ui::Camera& camera) {
     this->shader.bind();
-    auto index = this->shader.get_uniform_location("mvp").unwrap();
+
+    auto vp_index = this->shader.get_uniform_location("vp").unwrap();
     auto vp = camera.get_projection() * camera.get_view();
-    glm::mat4 mvp;
+    glUniformMatrix4fv(vp_index, 1, GL_FALSE, &vp[0][0]);
+
+    auto model_index = this->shader.get_uniform_location("model").unwrap();
+    glm::mat4 model;
 
     for (auto& c : this->map) {
         if (c.second->is_loaded()) {
@@ -158,8 +147,8 @@ void Terrain::draw(const ui::Camera& camera) {
                 continue;
             }
 
-            mvp = vp * glm::translate(glm::mat4(1.0f), glm::vec3(c.second->get_position()) * float(this->generator.get_chunk_size()));
-            glUniformMatrix4fv(index, 1, GL_FALSE, &mvp[0][0]);
+            model = glm::translate(glm::mat4(1.0f), glm::vec3(c.second->get_position()) * float(this->generator.get_chunk_size()));
+            glUniformMatrix4fv(model_index, 1, GL_FALSE, &model[0][0]);
             c.second->draw();
         }
     }
