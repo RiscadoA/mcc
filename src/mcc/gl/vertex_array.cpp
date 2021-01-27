@@ -103,6 +103,10 @@ VertexArray::VertexArray(unsigned int vao) :
 }
 
 VertexArray::VertexArray(VertexArray&& rhs) {
+    if (this->vao != 0) {
+        glDeleteVertexArrays(1, &this->vao);
+    }
+
     this->vao = rhs.vao;
     rhs.vao = 0;
 }

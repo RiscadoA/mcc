@@ -22,7 +22,7 @@ namespace mcc::gl {
             F32,        
         };
 
-        inline Attribute(VertexBuffer& buffer, size_t stride, size_t offset, int size, Type type, unsigned int shader_location) : 
+        inline Attribute(const VertexBuffer& buffer, size_t stride, size_t offset, int size, Type type, unsigned int shader_location) : 
             buffer(buffer), stride(stride), offset(offset), size(size), type(type), shader_location(shader_location) {
             // Empty
         }
@@ -32,7 +32,7 @@ namespace mcc::gl {
     private:
         friend class VertexArray;
 
-        VertexBuffer& buffer;
+        const VertexBuffer& buffer;
         size_t stride;
         size_t offset;
         

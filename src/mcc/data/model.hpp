@@ -1,32 +1,41 @@
 #pragma once
 
-#include <string>
-#include <glm/glm.hpp>
+#include <vector>
 
 #include <mcc/result.hpp>
-#include <mcc/config.hpp>
+#include <mcc/data/loader.hpp>
 #include <mcc/gl/mesh.hpp>
+#include <mcc/config.hpp>
 
 namespace mcc::data {
     // Stores multiple meshes and their voxel data contained in a single .vox file.
     class Model final {
     public:
+        class Loader final : public data::Loader {
+        public:
+            Loader(const Config& config);
+
+            inline const Model* get(int id) { return this->models[id]; }
+            virtual Result<void, std::string> load(int id) final;
+            virtual void unload(int id) final;
+
+        private:
+            const Config& config;
+
+            std::vector<Model*> models;
+        };
+
         Model(Model&& rhs);
         ~Model() = default;
-        
-        static Result<void, std::string> init(const Config& config); // Initializes the model loader and loads every model found
-        static Result<const Model&, std::string> get(const std::string& name); // Gets a model
-        
-        Result<const gl::Mesh&, std::string> get_mesh(const std::string& name) const;
+               
+        const gl::Matrix& get_matrix() const;
+        const gl::Mesh& get_mesh() const;
         
     private:
-        static Result<void, std::string> iterate(const std::string& path, const std::string& name);
-        static Result<void, std::string> parse_qb(std::ifstream& ifs, Model& model);
 
         Model() = default;
 
-        static std::map<std::string, Model> models;
-        std::map<std::string, gl::Mesh> meshes;
-        std::map<std::string, std::vector<glm::u8vec4>> voxels;
+        gl::Matrix matrix;
+        gl::Mesh mesh;
     };
 }

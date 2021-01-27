@@ -5,31 +5,48 @@
 using namespace mcc;
 using namespace mcc::gl;
 
-struct Vertex {
-    glm::vec3 pos, normal;
-    glm::u8vec4 color;
-};
-
 Mesh::Mesh(Mesh&& rhs) {
     this->va = std::move(rhs.va);
     this->vb = std::move(rhs.vb);
     this->ib = std::move(rhs.ib);
-    this->index_count = rhs.index_count;
-    rhs.index_count = 0;
+    this->opaque_count = rhs.opaque_count;
+    this->transparent_count = rhs.transparent_count;
+    this->transparent_offset = rhs.transparent_offset;
+    rhs.opaque_count = 0;
+    rhs.transparent_count = 0;
 }
 
-void Mesh::draw() const {
-    if (this->index_count > 0) {
+void Mesh::draw_opaque() const {
+    if (this->opaque_count > 0) {
         this->va.bind();
         this->ib.bind();
-        glDrawElements(GL_TRIANGLES, this->index_count, GL_UNSIGNED_INT, nullptr);
+        glDrawElements(GL_TRIANGLES, this->opaque_count, GL_UNSIGNED_INT, nullptr);
     }
 }
 
-void Mesh::build_buffers(const glm::u8vec4* voxels, glm::uvec3 sz, float vx_sz, bool generate_borders) {
-    std::vector<Vertex> verts;
-    std::vector<unsigned int> indices;
-    std::vector<glm::u8vec4> mask;
+void Mesh::draw_transparent() const {
+    if (this->transparent_count > 0) {
+        this->va.bind();
+        this->ib.bind();
+        glDrawElements(
+            GL_TRIANGLES,
+            this->transparent_count,
+            GL_UNSIGNED_INT,
+            (const void*)(this->transparent_offset * sizeof(unsigned int))
+        );
+    }
+}
+
+void Mesh::update(const Matrix& matrix, float vx_sz, bool generate_borders) {
+    std::vector<Vertex> opaque_verts, transparent_verts;
+    std::vector<unsigned int> opaque_indices, transparent_indices;
+    std::vector<unsigned char> mask;
+
+    auto& sz = matrix.size;
+
+    auto get_mat = [&] (unsigned int vox_index) -> const Material& {
+        return matrix.palette[matrix.voxels[vox_index]];
+    };
 
     // For both back and front faces
     bool back_face = true;
@@ -54,19 +71,19 @@ void Mesh::build_buffers(const glm::u8vec4* voxels, glm::uvec3 sz, float vx_sz, 
                         for (x[u] = 0; x[u] < int(sz[u]); ++x[u]) {
                             if (x[d] < 0) {
                                 mask[n++] = back_face ?
-                                            voxels[(x.x + q.x) * sz.y * sz.z + (x.y + q.y) * sz.z + (x.z + q.z)] :
-                                            glm::u8vec4(0, 0, 0, 0);
+                                            matrix.voxels[(x.x + q.x) * sz.y * sz.z + (x.y + q.y) * sz.z + (x.z + q.z)] :
+                                            0;
                             } else if (x[d] == int(sz[d]) - 1) {
                                 mask[n++] = back_face ? 
-                                            glm::u8vec4(0, 0, 0, 0) :
-                                            voxels[x.x * sz.y * sz.z + x.y * sz.z + x.z];
-                            } else if (voxels[x.x * sz.y * sz.z + x.y * sz.z + x.z] != voxels[(x.x + q.x) * sz.y * sz.z + (x.y + q.y) * sz.z + (x.z + q.z)]) {
-                            //} else if (voxels[x.x * sz.y * sz.z + x.y * sz.z + x.z].a != 255 || voxels[(x.x + q.x) * sz.y * sz.z + (x.y + q.y) * sz.z + (x.z + q.z)].a != 255) {
+                                            0 :
+                                            matrix.voxels[x.x * sz.y * sz.z + x.y * sz.z + x.z];
+                            } else if (get_mat(x.x * sz.y * sz.z + x.y * sz.z + x.z).color.a != 255 ||
+                                       get_mat((x.x + q.x) * sz.y * sz.z + (x.y + q.y) * sz.z + (x.z + q.z)).color.a != 255) {
                                 mask[n++] = back_face ?
-                                            voxels[(x.x + q.x) * sz.y * sz.z + (x.y + q.y) * sz.z + (x.z + q.z)] :
-                                            voxels[x.x * sz.y * sz.z + x.y * sz.z + x.z];
+                                            matrix.voxels[(x.x + q.x) * sz.y * sz.z + (x.y + q.y) * sz.z + (x.z + q.z)] :
+                                            matrix.voxels[x.x * sz.y * sz.z + x.y * sz.z + x.z];
                             } else {
-                                mask[n++] = glm::u8vec4(0, 0, 0, 0);
+                                mask[n++] = 0;
                             }
                         }
                     }
@@ -74,12 +91,13 @@ void Mesh::build_buffers(const glm::u8vec4* voxels, glm::uvec3 sz, float vx_sz, 
                     for (x[v] = 0; x[v] < int(sz[v]); ++x[v]) {
                         for (x[u] = 0; x[u] < int(sz[u]); ++x[u]) {
                             if (x[d] >= 0 && x[d] < int(sz[d]) - 1 &&
-                                voxels[x.x * sz.y * sz.z + x.y * sz.z + x.z] != voxels[(x.x + q.x) * sz.y * sz.z + (x.y + q.y) * sz.z + (x.z + q.z)]) {
+                                get_mat(x.x * sz.y * sz.z + x.y * sz.z + x.z).color.a != 255 ||
+                                get_mat((x.x + q.x) * sz.y * sz.z + (x.y + q.y) * sz.z + (x.z + q.z)).color.a != 255) {
                                 mask[n++] = back_face ?
-                                            voxels[(x.x + q.x) * sz.y * sz.z + (x.y + q.y) * sz.z + (x.z + q.z)] :
-                                            voxels[x.x * sz.y * sz.z + x.y * sz.z + x.z];
+                                            matrix.voxels[(x.x + q.x) * sz.y * sz.z + (x.y + q.y) * sz.z + (x.z + q.z)] :
+                                            matrix.voxels[x.x * sz.y * sz.z + x.y * sz.z + x.z];
                             } else {
-                                mask[n++] = glm::u8vec4(0, 0, 0, 0);
+                                mask[n++] = 0;
                             }
                         }
                     }
@@ -91,13 +109,13 @@ void Mesh::build_buffers(const glm::u8vec4* voxels, glm::uvec3 sz, float vx_sz, 
                 // Generate mesh from mask
                 for (int j = 0; j < int(sz[v]); ++j) {
                     for (int i = 0; i < int(sz[u]);) {
-                        if (mask[n].a != 0) {
+                        if (mask[n] != 0) {
                             int w, h;
                             for (w = 1; i + w < int(sz[u]) && mask[n + w] == mask[n]; ++w);
                             bool done = false;
                             for (h = 1; j + h < int(sz[v]); ++h) {
                                 for (int k = 0; k < w; ++k) {
-                                    if (mask[n + k + h * sz[u]].a == 0 || mask[n + k + h * sz[u]] != mask[n]) {
+                                    if (mask[n + k + h * sz[u]] == 0 || mask[n + k + h * sz[u]] != mask[n]) {
                                         done = true;
                                         break;
                                     }
@@ -108,7 +126,10 @@ void Mesh::build_buffers(const glm::u8vec4* voxels, glm::uvec3 sz, float vx_sz, 
                                 }
                             }
 
-                            if (mask[n].a != 0) {
+                            if (mask[n] != 0) {
+                                auto& verts = matrix.palette[mask[n]].color.a == 255 ? opaque_verts : transparent_verts;
+                                auto& indices = matrix.palette[mask[n]].color.a == 255 ? opaque_indices : transparent_indices;
+
                                 x[u] = i;
                                 x[v] = j;
 
@@ -117,7 +138,7 @@ void Mesh::build_buffers(const glm::u8vec4* voxels, glm::uvec3 sz, float vx_sz, 
                                 dv[v] = h;
                                 
                                 auto vi = verts.size();
-                                verts.resize(vi + 4, { { 0.0f, 0.0f, 0.0f }, back_face ? -q : q, mask[n] });
+                                verts.resize(vi + 4, { { 0.0f, 0.0f, 0.0f }, back_face ? -q : q, matrix.palette[mask[n]].color });
                                 verts[vi + 0].pos = glm::vec3(x) * vx_sz;
                                 verts[vi + 1].pos = glm::vec3(x + du) * vx_sz;
                                 verts[vi + 2].pos = glm::vec3(x + du + dv) * vx_sz;
@@ -144,7 +165,7 @@ void Mesh::build_buffers(const glm::u8vec4* voxels, glm::uvec3 sz, float vx_sz, 
 
                             for (int l = 0; l < h; ++l) {
                                 for (int k = 0; k < w; ++k) {
-                                    mask[n + k + l * sz[u]].a = 0;
+                                    mask[n + k + l * sz[u]] = 0;
                                 }
                             }
 
@@ -160,18 +181,32 @@ void Mesh::build_buffers(const glm::u8vec4* voxels, glm::uvec3 sz, float vx_sz, 
         }
     } while(back_face != true);
 
-    this->index_count = int(indices.size());
-    if (this->index_count > 0) {
-        // Create index buffer
-        this->ib = gl::IndexBuffer::create(indices.size() * sizeof(unsigned int), &indices[0], gl::Usage::Static).unwrap();
-
-        // Create vertex buffer
-        this->vb = gl::VertexBuffer::create(verts.size() * sizeof(Vertex), &verts[0], gl::Usage::Static).unwrap();
+    for (auto& i : transparent_indices) {
+        i += opaque_verts.size();
     }
+
+    opaque_verts.insert(opaque_verts.end(), transparent_verts.begin(), transparent_verts.end());
+    this->update(opaque_verts, opaque_indices, transparent_indices);
 }
 
-void Mesh::build_va() {
-    if (this->index_count > 0) {
+void mcc::gl::Mesh::update(
+    const std::vector<Vertex>& vertices,
+    const std::vector<unsigned int>& opaque_indices,
+    const std::vector<unsigned int>& transparent_indices
+) {
+    this->opaque_count = opaque_indices.size();
+    this->transparent_count = transparent_indices.size();
+    this->transparent_offset = transparent_indices.size();
+
+    if (this->opaque_count > 0 || this->transparent_count > 0) {
+        // Create index buffer
+        auto indices = opaque_indices;
+        indices.insert(indices.end(), opaque_indices.begin(), opaque_indices.end());
+        this->ib = gl::IndexBuffer::create(indices.size() * sizeof(unsigned int), indices.data(), gl::Usage::Static).unwrap();
+
+        // Create vertex buffer
+        this->vb = gl::VertexBuffer::create(vertices.size() * sizeof(Vertex), vertices.data(), gl::Usage::Static).unwrap();
+
         // Create vertex array
         this->va = gl::VertexArray::create({
             gl::Attribute(
@@ -192,6 +227,6 @@ void Mesh::build_va() {
                 4, gl::Attribute::Type::NU8,
                 2
             )
-        }).unwrap();
+            }).unwrap();
     }
 }

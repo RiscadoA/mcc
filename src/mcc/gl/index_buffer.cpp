@@ -37,6 +37,10 @@ IndexBuffer::IndexBuffer(unsigned int ibo) :
 }
 
 IndexBuffer::IndexBuffer(IndexBuffer&& rhs) {
+    if (this->ibo != 0) {
+        glDeleteBuffers(1, &this->ibo);
+    }
+
     this->ibo = rhs.ibo;
     rhs.ibo = 0;
 }
