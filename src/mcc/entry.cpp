@@ -349,12 +349,19 @@ int main(int argc, char** argv) try {
     auto model_loc = mesh_shader.get_uniform_location("model").unwrap();
     auto vp_loc = mesh_shader.get_uniform_location("vp").unwrap();
 
-    auto voxel_model = manager.get<mcc::data::Model>("model.monu10").unwrap();
+    auto voxel_model_1 = manager.get<mcc::data::Model>("model.teapot").unwrap();
+    auto voxel_model_2 = manager.get<mcc::data::Model>("model.chr_knight").unwrap();
+
+    auto& matrix = voxel_model_1->get_matrix();
+    auto octree = mcc::gl::matrix_to_octree(matrix);
+    auto mesh = mcc::gl::Mesh();
+
+    int lod = 7;
+    bool stop = false;
+    mesh.update(octree, 128.0f, lod);
 
     glEnable(GL_CULL_FACE);
     glFrontFace(GL_CCW);
-
-    float t = 0.0f;
 
     // Main loop
     while (!glfwWindowShouldClose(win)) {
@@ -375,6 +382,20 @@ int main(int argc, char** argv) try {
             camera->move(camera->get_up() * dt * -camera_speed);
         } else if (glfwGetKey(win, GLFW_KEY_E) == GLFW_PRESS) {
             camera->move(camera->get_up() * dt * camera_speed);
+        }
+
+        if (!stop && glfwGetKey(win, GLFW_KEY_KP_ADD) == GLFW_PRESS) {
+            stop = true;
+            lod += 1;
+            mesh.update(octree, 128.0f, lod);
+        }
+        else if (glfwGetKey(win, GLFW_KEY_KP_ADD) == GLFW_RELEASE && glfwGetKey(win, GLFW_KEY_KP_SUBTRACT) == GLFW_RELEASE) {
+            stop = false;
+        }
+        else if (!stop && glfwGetKey(win, GLFW_KEY_KP_SUBTRACT) == GLFW_PRESS) {
+            stop = true;
+            lod -= 1;
+            mesh.update(octree, 128.0f, lod);
         }
 
         camera->update();
@@ -401,8 +422,7 @@ int main(int argc, char** argv) try {
         model = glm::translate(model, glm::vec3(0.0f, 0.0f, 0.0f));
         glUniformMatrix4fv(model_loc, 1, GL_FALSE, &model[0][0]);
         glUniformMatrix4fv(vp_loc, 1, GL_FALSE, &vp[0][0]);
-        voxel_model->get_mesh().draw_opaque();
-        t += 0.001f;
+        mesh.draw_opaque();
 
         // Screen quad rendering
         glBindFramebuffer(GL_FRAMEBUFFER, 0);

@@ -8,12 +8,12 @@ namespace mcc::gl {
         glm::u8vec4 color = { 0, 0, 0, 0 }; // RGBA
     };
 
-    struct Voxel {
-        unsigned char material; // Material index in the palette
-        unsigned int child;     // 0 = not subdivided
-    };
-
     struct Octree {
+        struct Voxel {
+            unsigned char material; // Material index in the palette
+            unsigned int child;     // 0 = not subdivided
+        };
+
         Material palette[256];
         std::vector<Voxel> voxels;
     };
@@ -28,4 +28,6 @@ namespace mcc::gl {
         Matrix(const Matrix&) = default;
         Matrix& operator=(Matrix&& rhs) = default;
     };
+
+    Octree matrix_to_octree(const Matrix& matrix);
 }

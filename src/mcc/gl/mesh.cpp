@@ -1,5 +1,6 @@
 #include <mcc/gl/mesh.hpp>
 
+#include <functional>
 #include <GL/glew.h>
 
 using namespace mcc;
@@ -35,6 +36,100 @@ void Mesh::draw_transparent() const {
             (const void*)(this->transparent_offset * sizeof(unsigned int))
         );
     }
+}
+
+void Mesh::update(const Octree& octree, float root_sz, int lod) {
+    std::vector<Vertex> opaque_verts, transparent_verts;
+    std::vector<unsigned int> opaque_indices, transparent_indices;
+
+    auto get_mat = [&](unsigned int vox_index) -> const Material& {
+        return octree.palette[octree.voxels[vox_index].material];
+    };
+
+    std::function<void(unsigned int, glm::vec3, float, int)> build = [&](unsigned int index, glm::vec3 pos, float sz, int lod) {
+        if (octree.voxels[index].child != 0 && lod != 0) {
+            // Subdivide
+            float w = sz / 2.0f;
+            for (int a = 0; a <= 1; ++a) {
+                for (int b = 0; b <= 1; ++b) {
+                    for (int c = 0; c <= 1; ++c) {
+                        build(
+                            octree.voxels[index].child + 4 * a + 2 * b + c,
+                            pos + glm::vec3(a, b, c) * (float)w,
+                            w,
+                            lod - 1
+                        );
+                    }
+                }
+            }
+        }
+        else {
+            auto& mat = get_mat(index);
+
+            if (mat.color.a == 255) {
+                if (sz > 1.0f) {
+                    //std::cout << sz << '\n';
+                }
+
+                // For each axis
+                for (int d = 0; d < 3; ++d) {
+                    int ux = (d + 1) % 3;
+                    int vx = (d + 2) % 3;
+
+                    glm::vec3 t(0.0f, 0.0f, 0.0f), u(0.0f, 0.0f, 0.0f), v(0.0f, 0.0f, 0.0f);
+                    t[d] = sz;
+                    u[ux] = sz;
+                    v[vx] = sz;
+
+                    int vi = opaque_verts.size();
+                    opaque_verts.resize(vi + 4, { {}, -glm::normalize(t), mat.color });
+                    opaque_verts[vi + 0].pos = pos;
+                    opaque_verts[vi + 1].pos = pos + u;
+                    opaque_verts[vi + 2].pos = pos + u + v;
+                    opaque_verts[vi + 3].pos = pos + v;
+
+                    int ii = opaque_indices.size();
+                    opaque_indices.resize(ii + 6);
+                    opaque_indices[ii + 0] = vi + 2;
+                    opaque_indices[ii + 1] = vi + 1;
+                    opaque_indices[ii + 2] = vi + 0;
+                    opaque_indices[ii + 3] = vi + 3;
+                    opaque_indices[ii + 4] = vi + 2;
+                    opaque_indices[ii + 5] = vi + 0;
+
+                    vi = opaque_verts.size();
+                    opaque_verts.resize(vi + 4, { {}, glm::normalize(t), mat.color });
+                    opaque_verts[vi + 0].pos = pos + t;
+                    opaque_verts[vi + 1].pos = pos + t + u;
+                    opaque_verts[vi + 2].pos = pos + t + u + v;
+                    opaque_verts[vi + 3].pos = pos + t + v;
+
+                    ii = opaque_indices.size();
+                    opaque_indices.resize(ii + 6);
+                    opaque_indices[ii + 0] = vi + 0;
+                    opaque_indices[ii + 1] = vi + 1;
+                    opaque_indices[ii + 2] = vi + 2;
+                    opaque_indices[ii + 3] = vi + 0;
+                    opaque_indices[ii + 4] = vi + 2;
+                    opaque_indices[ii + 5] = vi + 3;
+                }
+
+                // TO DO
+            }
+            else if (mat.color.a != 0) {
+                // TO DO
+            }
+        }
+    };
+
+    build(0, glm::vec3(0.0f, 0.0f, 0.0f), root_sz, lod);
+
+    for (auto& i : transparent_indices) {
+        i += opaque_verts.size();
+    }
+
+    opaque_verts.insert(opaque_verts.end(), transparent_verts.begin(), transparent_verts.end());
+    this->update(opaque_verts, opaque_indices, transparent_indices);
 }
 
 void Mesh::update(const Matrix& matrix, float vx_sz, bool generate_borders) {
