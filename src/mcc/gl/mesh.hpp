@@ -24,7 +24,7 @@ namespace mcc::gl {
         void draw_opaque() const;
         void draw_transparent() const;
 
-        void update(const Octree& octree, float root_sz, int lod = -1);
+        void update(const Octree& octree, float root_sz, int lod = -1, bool generate_borders = true);
         void update(const Matrix& matrix, float vx_sz, bool generate_borders = true);
         void update(
             const std::vector<Vertex>& vertices,

@@ -349,10 +349,9 @@ int main(int argc, char** argv) try {
     auto model_loc = mesh_shader.get_uniform_location("model").unwrap();
     auto vp_loc = mesh_shader.get_uniform_location("vp").unwrap();
 
-    auto voxel_model_1 = manager.get<mcc::data::Model>("model.teapot").unwrap();
-    auto voxel_model_2 = manager.get<mcc::data::Model>("model.chr_knight").unwrap();
+    auto voxel_model = manager.get<mcc::data::Model>("model.monu10").unwrap();
 
-    auto& matrix = voxel_model_1->get_matrix();
+    auto& matrix = voxel_model->get_matrix();
     auto octree = mcc::gl::matrix_to_octree(matrix);
     auto mesh = mcc::gl::Mesh();
 

@@ -1,6 +1,8 @@
 #include <mcc/gl/mesh.hpp>
 
 #include <functional>
+#include <stack>
+
 #include <GL/glew.h>
 
 using namespace mcc;
@@ -38,17 +40,65 @@ void Mesh::draw_transparent() const {
     }
 }
 
-void Mesh::update(const Octree& octree, float root_sz, int lod) {
+void Mesh::update(const Octree& octree, float root_sz, int lod, bool generate_borders) {
     std::vector<Vertex> opaque_verts, transparent_verts;
     std::vector<unsigned int> opaque_indices, transparent_indices;
+    std::stack<unsigned int> parents;
 
     auto get_mat = [&](unsigned int vox_index) -> const Material& {
         return octree.palette[octree.voxels[vox_index].material];
     };
 
+    auto pos_to_index = [](glm::ivec3 pos) {
+        return pos.x * 4 + pos.y * 2 + pos.z;
+    };
+
+    auto get_rel_pos = [&](unsigned int parent, unsigned int index) {
+        return glm::ivec3(
+            (index - octree.voxels[parent].child) / 4,
+            ((index - octree.voxels[parent].child) % 4) / 2,
+            (index - octree.voxels[parent].child) % 2
+        );
+    };
+
+    // Gets the neighbour that is larger or equal to a voxel in a direction
+    std::function<unsigned int(unsigned int, glm::ivec3)> get_neighbour_be = [&](unsigned int index, glm::ivec3 dir) -> unsigned int {
+        // If root (octree border)
+        if (parents.empty()) {
+            return index;
+        }
+
+        int parent = parents.top();
+
+        // Neighbour has the same parent
+        auto rel_pos = get_rel_pos(parent, index);
+        auto neighbour_pos = rel_pos + dir;
+        if (neighbour_pos.x >= 0 && neighbour_pos.x <= 1 &&
+            neighbour_pos.y >= 0 && neighbour_pos.y <= 1 &&
+            neighbour_pos.z >= 0 && neighbour_pos.z <= 1) {
+            return octree.voxels[parent].child + pos_to_index(neighbour_pos);
+        }
+        
+        parents.pop();
+        unsigned int parent_neighbour = get_neighbour_be(parent, dir);
+        parents.push(parent);
+
+        // Octree border
+        if (parent_neighbour == parent) {
+            return index;
+        }
+        // If parent neighbour is leaf
+        else if (octree.voxels[parent_neighbour].child == 0) {
+            return parent_neighbour;
+        }
+
+        return octree.voxels[parent_neighbour].child + pos_to_index(glm::abs(neighbour_pos % 2));
+    };
+
     std::function<void(unsigned int, glm::vec3, float, int)> build = [&](unsigned int index, glm::vec3 pos, float sz, int lod) {
         if (octree.voxels[index].child != 0 && lod != 0) {
             // Subdivide
+            parents.push(index);
             float w = sz / 2.0f;
             for (int a = 0; a <= 1; ++a) {
                 for (int b = 0; b <= 1; ++b) {
@@ -62,62 +112,60 @@ void Mesh::update(const Octree& octree, float root_sz, int lod) {
                     }
                 }
             }
+            parents.pop();
         }
-        else {
+        else if (get_mat(index).color.a != 0) {
             auto& mat = get_mat(index);
+            auto& verts = mat.color.a == 255 ? opaque_verts : transparent_verts;
+            auto& indices = mat.color.a == 255 ? opaque_indices : transparent_indices;
 
-            if (mat.color.a == 255) {
-                if (sz > 1.0f) {
-                    //std::cout << sz << '\n';
+            // For each axis
+            for (int axis = 0; axis < 3; ++axis) {
+                for (int side = 0; side <= 1; ++side) {
+                    glm::ivec3 q;
+                    q = { 0, 0, 0 };
+                    glm::vec3 t, u, v;
+                    t = u = v = { 0.0f, 0.0f, 0.0f };
+                    q[(axis + 0) % 3] = 1;
+                    t[(axis + 0) % 3] = sz;
+                    u[(axis + 1) % 3] = sz;
+                    v[(axis + 2) % 3] = sz;
+
+                    // Check neighbour
+                    auto neighbour = get_neighbour_be(index, side ? q : -q);
+                    bool visible = (get_mat(neighbour).color.a != 255 &&
+                                   octree.voxels[neighbour].material != octree.voxels[index].material) ||
+                                   octree.voxels[neighbour].child != 0 ||
+                                   (neighbour == index && generate_borders);
+
+                    if (visible) {
+                        auto vi = verts.size();
+                        verts.resize(vi + 4, { { 0.0f, 0.0f, 0.0f }, side ? q : -q, mat.color });
+                        verts[vi + 0].pos = pos + t * (float)side;
+                        verts[vi + 1].pos = pos + t * (float)side + u;
+                        verts[vi + 2].pos = pos + t * (float)side + u + v;
+                        verts[vi + 3].pos = pos + t * (float)side + v;
+
+                        auto ii = indices.size();
+                        indices.resize(ii + 6);
+                        if (side) {
+                            indices[ii + 0] = vi + 0;
+                            indices[ii + 1] = vi + 1;
+                            indices[ii + 2] = vi + 2;
+                            indices[ii + 3] = vi + 2;
+                            indices[ii + 4] = vi + 3;
+                            indices[ii + 5] = vi + 0;
+                        }
+                        else {
+                            indices[ii + 0] = vi + 0;
+                            indices[ii + 1] = vi + 2;
+                            indices[ii + 2] = vi + 1;
+                            indices[ii + 3] = vi + 3;
+                            indices[ii + 4] = vi + 2;
+                            indices[ii + 5] = vi + 0;                      
+                        }
+                    }
                 }
-
-                // For each axis
-                for (int d = 0; d < 3; ++d) {
-                    int ux = (d + 1) % 3;
-                    int vx = (d + 2) % 3;
-
-                    glm::vec3 t(0.0f, 0.0f, 0.0f), u(0.0f, 0.0f, 0.0f), v(0.0f, 0.0f, 0.0f);
-                    t[d] = sz;
-                    u[ux] = sz;
-                    v[vx] = sz;
-
-                    int vi = opaque_verts.size();
-                    opaque_verts.resize(vi + 4, { {}, -glm::normalize(t), mat.color });
-                    opaque_verts[vi + 0].pos = pos;
-                    opaque_verts[vi + 1].pos = pos + u;
-                    opaque_verts[vi + 2].pos = pos + u + v;
-                    opaque_verts[vi + 3].pos = pos + v;
-
-                    int ii = opaque_indices.size();
-                    opaque_indices.resize(ii + 6);
-                    opaque_indices[ii + 0] = vi + 2;
-                    opaque_indices[ii + 1] = vi + 1;
-                    opaque_indices[ii + 2] = vi + 0;
-                    opaque_indices[ii + 3] = vi + 3;
-                    opaque_indices[ii + 4] = vi + 2;
-                    opaque_indices[ii + 5] = vi + 0;
-
-                    vi = opaque_verts.size();
-                    opaque_verts.resize(vi + 4, { {}, glm::normalize(t), mat.color });
-                    opaque_verts[vi + 0].pos = pos + t;
-                    opaque_verts[vi + 1].pos = pos + t + u;
-                    opaque_verts[vi + 2].pos = pos + t + u + v;
-                    opaque_verts[vi + 3].pos = pos + t + v;
-
-                    ii = opaque_indices.size();
-                    opaque_indices.resize(ii + 6);
-                    opaque_indices[ii + 0] = vi + 0;
-                    opaque_indices[ii + 1] = vi + 1;
-                    opaque_indices[ii + 2] = vi + 2;
-                    opaque_indices[ii + 3] = vi + 0;
-                    opaque_indices[ii + 4] = vi + 2;
-                    opaque_indices[ii + 5] = vi + 3;
-                }
-
-                // TO DO
-            }
-            else if (mat.color.a != 0) {
-                // TO DO
             }
         }
     };
