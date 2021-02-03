@@ -2,6 +2,7 @@
 
 #include <functional>
 #include <stack>
+#include <chrono>
 
 #include <GL/glew.h>
 
@@ -41,6 +42,8 @@ void Mesh::draw_transparent() const {
 }
 
 void Mesh::update(const Octree& octree, float root_sz, int lod, bool generate_borders) {
+    auto begin = std::chrono::steady_clock::now();
+    
     std::vector<Vertex> opaque_verts, transparent_verts;
     std::vector<unsigned int> opaque_indices, transparent_indices;
     std::stack<unsigned int> parents;
@@ -177,10 +180,18 @@ void Mesh::update(const Octree& octree, float root_sz, int lod, bool generate_bo
     }
 
     opaque_verts.insert(opaque_verts.end(), transparent_verts.begin(), transparent_verts.end());
+    
+    auto end = std::chrono::steady_clock::now();
+    auto t = std::chrono::duration_cast<std::chrono::microseconds>(end - begin).count();
+    std::cout << "Octree meshing time: " << t << "ms" << std::endl;
+    std::cout << opaque_verts.size() << " vertices, " << (opaque_indices.size() + transparent_indices.size()) << " indices" << std::endl;
+
     this->update(opaque_verts, opaque_indices, transparent_indices);
 }
 
 void Mesh::update(const Matrix& matrix, float vx_sz, bool generate_borders) {
+    auto begin = std::chrono::steady_clock::now();
+    
     std::vector<Vertex> opaque_verts, transparent_verts;
     std::vector<unsigned int> opaque_indices, transparent_indices;
     std::vector<unsigned char> mask;
@@ -329,6 +340,12 @@ void Mesh::update(const Matrix& matrix, float vx_sz, bool generate_borders) {
     }
 
     opaque_verts.insert(opaque_verts.end(), transparent_verts.begin(), transparent_verts.end());
+    
+    auto end = std::chrono::steady_clock::now();
+    auto t = std::chrono::duration_cast<std::chrono::microseconds>(end - begin).count();
+    std::cout << "Matrix meshing time: " << t << "ms" << std::endl;
+    std::cout << opaque_verts.size() << " vertices, " << (opaque_indices.size() + transparent_indices.size()) << " indices" << std::endl;
+
     this->update(opaque_verts, opaque_indices, transparent_indices);
 }
 

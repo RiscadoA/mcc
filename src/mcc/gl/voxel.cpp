@@ -59,7 +59,25 @@ Octree mcc::gl::matrix_to_octree(const Matrix& matrix) {
                 }
             }
 
-            octree.voxels[index].material = octree.voxels[vi].material;
+            int max_count = 0;
+            int mode_mat = 0;
+
+            for (int i = vi; i < vi + 8; ++i) {
+                int count = 0;
+
+                for (int j = vi; j < vi + 8; ++j) {
+                    if (octree.voxels[i].material == octree.voxels[j].material) {
+                        count += 1;
+                    }
+                }
+
+                if (count > max_count) {
+                    max_count = count;
+                    mode_mat = octree.voxels[i].material;
+                }
+            }
+
+            octree.voxels[index].material = mode_mat;
             octree.voxels[index].child = vi;
         }
         else {

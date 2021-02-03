@@ -12,6 +12,9 @@
 #include <mcc/gl/mesh.hpp>
 #include <mcc/ui/camera.hpp>
 
+#include <mcc/map/chunk.hpp>
+#include <mcc/map/generator.hpp>
+
 #include <iostream>
 #include <chrono>
 #include <random>
@@ -22,6 +25,14 @@ float camera_sensitivity = 0.1f;
 float camera_speed = 1.0f;
 const glm::vec4 sky_color = { 0.1f, 0.5f, 0.8f, 1.0f };
 bool wireframe = false;
+bool using_octree = false;
+
+class Generator : public mcc::map::Generator {
+public:
+    virtual unsigned char generate_material(glm::f64vec3 pos, int level) override {
+        return 1;
+    }
+};
 
 void glfw_error_callback(int err, const char* msg) {
     std::cerr << "GLFW error callback called with code '" << err << "':\n" << msg << '\n';
@@ -42,8 +53,13 @@ void glfw_cursor_pos_callback(GLFWwindow* win, double x, double y) {
 }
 
 void glfw_key_callback(GLFWwindow* win, int key, int, int action, int) {
-    if (action == GLFW_PRESS && key == GLFW_KEY_F1) {
-        wireframe = !wireframe;
+    if (action == GLFW_PRESS) {
+        switch (key) {
+        case GLFW_KEY_F1:
+            wireframe = !wireframe;
+        case GLFW_KEY_F2:
+            using_octree = !using_octree;
+        }
     }
 }
 
@@ -112,6 +128,8 @@ int main(int argc, char** argv) try {
 #ifndef NDEBUG
     glfwWindowHint(GLFW_OPENGL_DEBUG_CONTEXT, GL_TRUE);
 #endif
+    glfwWindowHint(GLFW_CONTEXT_VERSION_MAJOR, 4);
+    glfwWindowHint(GLFW_CONTEXT_VERSION_MINOR, 3);
 
     auto win = glfwCreateWindow(
         int(config["window.width"].unwrap().as_integer().unwrap()),
@@ -349,15 +367,13 @@ int main(int argc, char** argv) try {
     auto model_loc = mesh_shader.get_uniform_location("model").unwrap();
     auto vp_loc = mesh_shader.get_uniform_location("vp").unwrap();
 
-    auto voxel_model = manager.get<mcc::data::Model>("model.monu10").unwrap();
-
-    auto& matrix = voxel_model->get_matrix();
-    auto octree = mcc::gl::matrix_to_octree(matrix);
+    auto obj = manager.get<mcc::data::Model>("model.monu10").unwrap();
+    auto octree = mcc::gl::matrix_to_octree(obj->get_matrix());
     auto mesh = mcc::gl::Mesh();
+    mesh.update(octree, 128.0f);
 
-    int lod = 7;
-    bool stop = false;
-    mesh.update(octree, 128.0f, lod);
+    //auto generator = Generator();
+    //auto chunk = mcc::map::Chunk(generator, 16, glm::f64vec3(), 0);
 
     glEnable(GL_CULL_FACE);
     glFrontFace(GL_CCW);
@@ -383,26 +399,13 @@ int main(int argc, char** argv) try {
             camera->move(camera->get_up() * dt * camera_speed);
         }
 
-        if (!stop && glfwGetKey(win, GLFW_KEY_KP_ADD) == GLFW_PRESS) {
-            stop = true;
-            lod += 1;
-            mesh.update(octree, 128.0f, lod);
-        }
-        else if (glfwGetKey(win, GLFW_KEY_KP_ADD) == GLFW_RELEASE && glfwGetKey(win, GLFW_KEY_KP_SUBTRACT) == GLFW_RELEASE) {
-            stop = false;
-        }
-        else if (!stop && glfwGetKey(win, GLFW_KEY_KP_SUBTRACT) == GLFW_PRESS) {
-            stop = true;
-            lod -= 1;
-            mesh.update(octree, 128.0f, lod);
-        }
-
         camera->update();
 
         glBindFramebuffer(GL_FRAMEBUFFER, ss_fbo);
         glEnable(GL_DEPTH_TEST);
         glPolygonMode(GL_FRONT_AND_BACK, wireframe ? GL_LINE : GL_FILL);
 
+        // Clear framebuffer
         GLuint draw_buffers[] = { GL_COLOR_ATTACHMENT0, GL_COLOR_ATTACHMENT1, GL_COLOR_ATTACHMENT2 };
         glDrawBuffers(1, &draw_buffers[0]);
         glClearColor(sky_color.r, sky_color.g, sky_color.b, 1.0f);
@@ -413,15 +416,16 @@ int main(int argc, char** argv) try {
         glDrawBuffers(3, &draw_buffers[0]);
         glClear(GL_DEPTH_BUFFER_BIT);
 
-        mesh_shader.bind();
-        
+        // Opaque pass
         glm::mat4 vp = camera->get_projection() * camera->get_view();
+        mesh_shader.bind();
+
         glm::mat4 model = glm::mat4(1.0f);
-        //model = glm::rotate(model, glm::pi<float>(), glm::vec3(0.0f, 1.0f, 0.0f));
+        model = glm::rotate(model, glm::pi<float>(), glm::vec3(0.0f, 1.0f, 0.0f));
         model = glm::translate(model, glm::vec3(0.0f, 0.0f, 0.0f));
         glUniformMatrix4fv(model_loc, 1, GL_FALSE, &model[0][0]);
         glUniformMatrix4fv(vp_loc, 1, GL_FALSE, &vp[0][0]);
-        mesh.draw_opaque();
+        (using_octree ? mesh : obj->get_mesh()).draw_opaque();
 
         // Screen quad rendering
         glBindFramebuffer(GL_FRAMEBUFFER, 0);
