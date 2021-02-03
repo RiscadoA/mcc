@@ -37,6 +37,10 @@ VertexBuffer::VertexBuffer(unsigned int vbo) :
 }
 
 VertexBuffer::VertexBuffer(VertexBuffer&& rhs) {
+    if (this->vbo != 0) {
+        glDeleteBuffers(1, &this->vbo);
+    }
+
     this->vbo = rhs.vbo;
     rhs.vbo = 0;
 }

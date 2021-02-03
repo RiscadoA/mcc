@@ -83,7 +83,7 @@ namespace mcc {
 			If there was no error, E() is returned.
 		*/
 		inline E get_error() const {
-			if (!this->error)
+			if (!this->is_err)
 				return E();
 			return this->err;
 		}

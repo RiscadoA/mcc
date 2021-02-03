@@ -8,7 +8,7 @@ using Variable = Config::Variable;
 mcc::Config::Config(int argc, char** argv) {
 	std::string config_path = "./mcc.cfg"; // Defaut config file path
 	
-	/* Parse variables from command-line arguments */
+	// Parse variables from command-line arguments
 	for (int i = 1; i < argc; ++i) {
 		if (std::strcmp(argv[i], "-c") == 0) {
 			if (i + 1 >= argc) {
@@ -43,7 +43,7 @@ mcc::Config::Config(int argc, char** argv) {
 		}
 	}
 
-	/* Parse variables from config file */
+	// Parse variables from config file
 	std::ifstream fs(config_path);
 	if (!fs.is_open()) {
 		std::cerr << "mcc::Config::Config() failed:" << std::endl;

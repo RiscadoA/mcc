@@ -1,35 +1,30 @@
 #pragma once
 
-#include <glm/glm.hpp>
-#include <atomic>
-#include <vector>
-#include <GL/glew.h>
-
-#include <mcc/map/generator.hpp>
 #include <mcc/gl/mesh.hpp>
+#include <mcc/ui/camera.hpp>
+#include <mcc/map/generator.hpp>
+
+#include <glm/glm.hpp>
 
 namespace mcc::map {
     class Chunk {
     public:
-        Chunk(const Generator& generator, glm::i64vec3 position); // Initializes an unloaded chunk.
+        Chunk(const Generator& generator, int chunk_size, glm::f64vec3 center, int level);
         ~Chunk();
 
-        void load(); // Loads the chunk at a certain level of detail
-        void draw();
+        void update(glm::vec3 view_point, float lod_distance);
 
-        inline const glm::i64vec3& get_position() const { return this->position; }
-        bool is_loaded();
+        void draw(const ui::Camera& camera);
 
-        glm::u8vec4 get_voxel(glm::uvec3 pos) const;
-        
-    private:    
+    private:
         const Generator& generator;
-        const glm::i64vec3 position;
-    
-        std::vector<glm::u8vec4> voxels;
-        std::atomic<bool> loaded, has_fence;
-        GLsync sync;
 
         gl::Mesh mesh;
+        gl::Matrix matrix;
+
+        Chunk* children[8];
+
+        glm::f64vec3 center;
+        int chunk_size, level;
     };
 }

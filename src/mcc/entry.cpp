@@ -1,15 +1,19 @@
 #include <mcc/config.hpp>
 
+#include <mcc/data/manager.hpp>
+#include <mcc/data/model.hpp>
+
 #include <GL/glew.h>
 #include <GLFW/glfw3.h>
 #include <glm/gtc/matrix_transform.hpp>
 
 #include <mcc/gl/shader.hpp>
 #include <mcc/gl/vertex_array.hpp>
+#include <mcc/gl/mesh.hpp>
 #include <mcc/ui/camera.hpp>
-#include <mcc/data/model.hpp>
 
-#include <mcc/map/terrain.hpp>
+#include <mcc/map/chunk.hpp>
+#include <mcc/map/generator.hpp>
 
 #include <iostream>
 #include <chrono>
@@ -21,6 +25,14 @@ float camera_sensitivity = 0.1f;
 float camera_speed = 1.0f;
 const glm::vec4 sky_color = { 0.1f, 0.5f, 0.8f, 1.0f };
 bool wireframe = false;
+bool using_octree = false;
+
+class Generator : public mcc::map::Generator {
+public:
+    virtual unsigned char generate_material(glm::f64vec3 pos, int level) override {
+        return 1;
+    }
+};
 
 void glfw_error_callback(int err, const char* msg) {
     std::cerr << "GLFW error callback called with code '" << err << "':\n" << msg << '\n';
@@ -41,8 +53,13 @@ void glfw_cursor_pos_callback(GLFWwindow* win, double x, double y) {
 }
 
 void glfw_key_callback(GLFWwindow* win, int key, int, int action, int) {
-    if (action == GLFW_PRESS && key == GLFW_KEY_F1) {
-        wireframe = !wireframe;
+    if (action == GLFW_PRESS) {
+        switch (key) {
+        case GLFW_KEY_F1:
+            wireframe = !wireframe;
+        case GLFW_KEY_F2:
+            using_octree = !using_octree;
+        }
     }
 }
 
@@ -111,6 +128,8 @@ int main(int argc, char** argv) try {
 #ifndef NDEBUG
     glfwWindowHint(GLFW_OPENGL_DEBUG_CONTEXT, GL_TRUE);
 #endif
+    glfwWindowHint(GLFW_CONTEXT_VERSION_MAJOR, 4);
+    glfwWindowHint(GLFW_CONTEXT_VERSION_MINOR, 3);
 
     auto win = glfwCreateWindow(
         int(config["window.width"].unwrap().as_integer().unwrap()),
@@ -141,6 +160,10 @@ int main(int argc, char** argv) try {
         glDebugMessageCallback(gl_debug_output, nullptr);
         glDebugMessageControl(GL_DONT_CARE, GL_DONT_CARE, GL_DONT_CARE, 0, nullptr, GL_TRUE);
     }
+
+    // Setup asset manager
+    auto model_loader = mcc::data::Model::Loader(config);
+    auto manager = mcc::data::Manager(config, { { "model", &model_loader } });
 
     // Setup camera
     camera = new mcc::ui::Camera(
@@ -287,14 +310,14 @@ int main(int argc, char** argv) try {
         uniform vec3 camera_position;
         uniform float z_far;
 
-        const vec3 light_dir = normalize(vec3(-0.7, 2.0, -0.5));
+        const vec3 light_dir = normalize(vec3(-0.7, 1.0, -0.5));
 
         void main() {
             vec3 albedo = texture(albedo_tex, frag_uv).rgb;
             vec3 position = texture(position_tex, frag_uv).xyz;
             vec3 normal = texture(normal_tex, frag_uv).xyz;
 
-            vec3 lighting = albedo * 0.1f;
+            vec3 lighting = albedo * 0.4f;
             vec3 diffuse = max(dot(normal, light_dir), 0.0f) * albedo;
             lighting += diffuse;
 
@@ -341,18 +364,16 @@ int main(int argc, char** argv) try {
         }).unwrap();
     }
 
-    // Load game
-    mcc::data::Model::init(config).unwrap();
-
-    auto generator = mcc::map::Generator(0, 32);
-    auto terrain = mcc::map::Terrain(generator, mesh_shader);
-
-    auto& mesh_1 = mcc::data::Model::get("chr_knight").unwrap().get_mesh("").unwrap();
-    auto& mesh_2 = mcc::data::Model::get("chr_sword").unwrap().get_mesh("").unwrap();
-    auto& mesh_3 = mcc::data::Model::get("monu10").unwrap().get_mesh("").unwrap();
-    auto& mesh_4 = mcc::data::Model::get("teapot").unwrap().get_mesh("").unwrap();
     auto model_loc = mesh_shader.get_uniform_location("model").unwrap();
     auto vp_loc = mesh_shader.get_uniform_location("vp").unwrap();
+
+    auto obj = manager.get<mcc::data::Model>("model.monu10").unwrap();
+    auto octree = mcc::gl::matrix_to_octree(obj->get_matrix());
+    auto mesh = mcc::gl::Mesh();
+    mesh.update(octree, 128.0f);
+
+    //auto generator = Generator();
+    //auto chunk = mcc::map::Chunk(generator, 16, glm::f64vec3(), 0);
 
     glEnable(GL_CULL_FACE);
     glFrontFace(GL_CCW);
@@ -384,6 +405,7 @@ int main(int argc, char** argv) try {
         glEnable(GL_DEPTH_TEST);
         glPolygonMode(GL_FRONT_AND_BACK, wireframe ? GL_LINE : GL_FILL);
 
+        // Clear framebuffer
         GLuint draw_buffers[] = { GL_COLOR_ATTACHMENT0, GL_COLOR_ATTACHMENT1, GL_COLOR_ATTACHMENT2 };
         glDrawBuffers(1, &draw_buffers[0]);
         glClearColor(sky_color.r, sky_color.g, sky_color.b, 1.0f);
@@ -394,38 +416,16 @@ int main(int argc, char** argv) try {
         glDrawBuffers(3, &draw_buffers[0]);
         glClear(GL_DEPTH_BUFFER_BIT);
 
-        /*mesh_shader.bind();
-        
-        glm::mat4 mvp = camera->get_projection() * camera->get_view();
-        mvp = glm::translate(mvp, glm::vec3(0.0f, 35.0f, 15.0f));
-        glUniformMatrix4fv(mvp_loc, 1, GL_FALSE, &mvp[0][0]);
-        mesh_1.draw();
+        // Opaque pass
+        glm::mat4 vp = camera->get_projection() * camera->get_view();
+        mesh_shader.bind();
 
-        mvp = glm::translate(mvp, glm::vec3(20.0f, -2.0f, 0.0f));
-        glUniformMatrix4fv(mvp_loc, 1, GL_FALSE, &mvp[0][0]);
-        mesh_2.draw();
-
-
-        mvp = glm::translate(mvp, glm::vec3(-70.0f, 0.0f, 30.0f));
-        glUniformMatrix4fv(mvp_loc, 1, GL_FALSE, &mvp[0][0]);
-        mesh_3.draw();
-
-        mvp = glm::translate(mvp, glm::vec3(100.0f, 0.0f, 0.0f));
-        glUniformMatrix4fv(mvp_loc, 1, GL_FALSE, &mvp[0][0]);
-        mesh_4.draw();*/
-        
-        auto begin = std::chrono::steady_clock::now();
-        
-        terrain.update(*camera);
-        
-        auto end = std::chrono::steady_clock::now();
-        std::cout << "Terrain update: " << std::chrono::duration_cast<std::chrono::milliseconds>(end - begin).count() << "ms\n";
-        begin = end;
-        
-        terrain.draw(*camera);
-
-        end = std::chrono::steady_clock::now();
-        std::cout << "Terrain draw: " << std::chrono::duration_cast<std::chrono::milliseconds>(end - begin).count() << "ms" << std::endl;
+        glm::mat4 model = glm::mat4(1.0f);
+        model = glm::rotate(model, glm::pi<float>(), glm::vec3(0.0f, 1.0f, 0.0f));
+        model = glm::translate(model, glm::vec3(0.0f, 0.0f, 0.0f));
+        glUniformMatrix4fv(model_loc, 1, GL_FALSE, &model[0][0]);
+        glUniformMatrix4fv(vp_loc, 1, GL_FALSE, &vp[0][0]);
+        (using_octree ? mesh : obj->get_mesh()).draw_opaque();
 
         // Screen quad rendering
         glBindFramebuffer(GL_FRAMEBUFFER, 0);
@@ -454,7 +454,7 @@ int main(int argc, char** argv) try {
     // Unload game
 
     delete camera;
-    
+
     glfwDestroyWindow(win);
 
     return 0;

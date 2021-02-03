@@ -20,27 +20,30 @@ set (SOURCE_FILES
 	"src/mcc/gl/vertex_array.cpp"
 	"src/mcc/gl/mesh.hpp"
 	"src/mcc/gl/mesh.cpp"
+	"src/mcc/gl/voxel.hpp"
+	"src/mcc/gl/voxel.cpp"
 
+	"src/mcc/data/manager.hpp"
+	"src/mcc/data/handle.hpp"
 	"src/mcc/data/model.hpp"
 	"src/mcc/data/model.cpp"
+	"src/mcc/data/manager.cpp"
+	"src/mcc/data/loader.hpp"
+	"src/mcc/data/loader.cpp"
+	"src/mcc/data/qb_parser.hpp"
+	"src/mcc/data/qb_parser.cpp"
 
 	"src/mcc/entity/entity.hpp"
 	"src/mcc/entity/entity.cpp"
 	"src/mcc/entity/bounding_box.hpp"
 	"src/mcc/entity/bounding_box.cpp"
 
-	"src/mcc/map/generator.hpp"
-	"src/mcc/map/generator.cpp"
-	#"src/mcc/map/block.hpp"
-	#"src/mcc/map/block.cpp"
 	"src/mcc/map/chunk.hpp"
 	"src/mcc/map/chunk.cpp"
-	"src/mcc/map/terrain.hpp"
-	"src/mcc/map/terrain.cpp"
 
 	"src/mcc/ui/camera.hpp"
 	"src/mcc/ui/camera.cpp"
-)
+ "src/mcc/map/generator.hpp" "src/mcc/map/loader.hpp")
 
 add_executable(mcc-game ${SOURCE_FILES})
 set_target_properties(mcc-game PROPERTIES
