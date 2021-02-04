@@ -21,7 +21,7 @@ Mesh::Mesh(Mesh&& rhs) {
 }
 
 void Mesh::draw_opaque() const {
-    if (this->opaque_count > 0) {
+    if (this->opaque_count > 0 && this->va_ready) {
         this->va.bind();
         this->ib.bind();
         glDrawElements(GL_TRIANGLES, this->opaque_count, GL_UNSIGNED_INT, nullptr);
@@ -29,7 +29,7 @@ void Mesh::draw_opaque() const {
 }
 
 void Mesh::draw_transparent() const {
-    if (this->transparent_count > 0) {
+    if (this->transparent_count > 0 && this->va_ready) {
         this->va.bind();
         this->ib.bind();
         glDrawElements(
@@ -41,7 +41,36 @@ void Mesh::draw_transparent() const {
     }
 }
 
-void Mesh::update(const Octree& octree, float root_sz, int lod, bool generate_borders) {
+void mcc::gl::Mesh::generate_va() {
+    if (!this->va_ready) {
+        if (this->opaque_count > 0 || this->transparent_count > 0) {
+            this->va = gl::VertexArray::create({
+                gl::Attribute(
+                    this->vb,
+                    sizeof(Vertex), offsetof(Vertex, Vertex::pos),
+                    3, gl::Attribute::Type::F32,
+                    0
+                ),
+                gl::Attribute(
+                    this->vb,
+                    sizeof(Vertex), offsetof(Vertex, Vertex::normal),
+                    3, gl::Attribute::Type::F32,
+                    1
+                ),
+                gl::Attribute(
+                    this->vb,
+                    sizeof(Vertex), offsetof(Vertex, Vertex::color),
+                    4, gl::Attribute::Type::NU8,
+                    2
+                )
+            }).unwrap();
+        }
+
+        this->va_ready = true;
+    }
+}
+
+void Mesh::update(const Octree& octree, float root_sz, int lod, bool generate_borders, bool gen_va) {
     auto begin = std::chrono::steady_clock::now();
     
     std::vector<Vertex> opaque_verts, transparent_verts;
@@ -183,13 +212,13 @@ void Mesh::update(const Octree& octree, float root_sz, int lod, bool generate_bo
     
     auto end = std::chrono::steady_clock::now();
     auto t = std::chrono::duration_cast<std::chrono::microseconds>(end - begin).count();
-    std::cout << "Octree meshing time: " << t << "ms" << std::endl;
-    std::cout << opaque_verts.size() << " vertices, " << (opaque_indices.size() + transparent_indices.size()) << " indices" << std::endl;
+    //std::cout << "Octree meshing time: " << t << "us" << std::endl;
+    //std::cout << opaque_verts.size() << " vertices, " << (opaque_indices.size() + transparent_indices.size()) << " indices" << std::endl;
 
-    this->update(opaque_verts, opaque_indices, transparent_indices);
+    this->update(opaque_verts, opaque_indices, transparent_indices, gen_va);
 }
 
-void Mesh::update(const Matrix& matrix, float vx_sz, bool generate_borders) {
+void Mesh::update(const Matrix& matrix, float vx_sz, bool generate_borders, bool gen_va) {
     auto begin = std::chrono::steady_clock::now();
     
     std::vector<Vertex> opaque_verts, transparent_verts;
@@ -343,16 +372,17 @@ void Mesh::update(const Matrix& matrix, float vx_sz, bool generate_borders) {
     
     auto end = std::chrono::steady_clock::now();
     auto t = std::chrono::duration_cast<std::chrono::microseconds>(end - begin).count();
-    std::cout << "Matrix meshing time: " << t << "ms" << std::endl;
-    std::cout << opaque_verts.size() << " vertices, " << (opaque_indices.size() + transparent_indices.size()) << " indices" << std::endl;
+    //std::cout << "Matrix meshing time: " << t << "us" << std::endl;
+    //std::cout << opaque_verts.size() << " vertices, " << (opaque_indices.size() + transparent_indices.size()) << " indices" << std::endl;
 
-    this->update(opaque_verts, opaque_indices, transparent_indices);
+    this->update(opaque_verts, opaque_indices, transparent_indices, gen_va);
 }
 
 void mcc::gl::Mesh::update(
     const std::vector<Vertex>& vertices,
     const std::vector<unsigned int>& opaque_indices,
-    const std::vector<unsigned int>& transparent_indices
+    const std::vector<unsigned int>& transparent_indices,
+    bool gen_va
 ) {
     this->opaque_count = opaque_indices.size();
     this->transparent_count = transparent_indices.size();
@@ -368,25 +398,9 @@ void mcc::gl::Mesh::update(
         this->vb = gl::VertexBuffer::create(vertices.size() * sizeof(Vertex), vertices.data(), gl::Usage::Static).unwrap();
 
         // Create vertex array
-        this->va = gl::VertexArray::create({
-            gl::Attribute(
-                this->vb,
-                sizeof(Vertex), offsetof(Vertex, Vertex::pos),
-                3, gl::Attribute::Type::F32,
-                0
-            ),
-            gl::Attribute(
-                this->vb,
-                sizeof(Vertex), offsetof(Vertex, Vertex::normal),
-                3, gl::Attribute::Type::F32,
-                1
-            ),
-            gl::Attribute(
-                this->vb,
-                sizeof(Vertex), offsetof(Vertex, Vertex::color),
-                4, gl::Attribute::Type::NU8,
-                2
-            )
-            }).unwrap();
+        this->va_ready = false;
+        if (gen_va) {
+            this->generate_va();
+        }
     }
 }
