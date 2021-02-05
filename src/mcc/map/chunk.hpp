@@ -18,10 +18,15 @@ namespace mcc::map {
         void draw(const ui::Camera& camera, unsigned int model_loc);
 
         inline Chunk* get_parent() const { return this->parent; }
+
         inline float get_score() const { return this->score; }
         inline int get_level() const { return this->level; }
+        inline bool should_delete() const { return this->delete_flag; }
+        inline bool is_generated() const { return this->generated; }
 
     private:
+        void collapse();
+
         Generator& generator;
 
         gl::Mesh mesh;
@@ -36,6 +41,7 @@ namespace mcc::map {
 
         bool visible;
         bool generated;
+        bool delete_flag;
         float score;
 
         GLsync sync;

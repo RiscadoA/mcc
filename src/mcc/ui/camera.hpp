@@ -13,6 +13,8 @@ namespace mcc::ui {
 
         void set_position(const glm::vec3& position);
         void set_rotation(const glm::vec2& rotation);
+        void set_direction(const glm::vec3& dir);
+        void look_at(const glm::vec3& point);
 
         void set_fov(float fov);
         void set_aspect_ratio(float aspect_ratio);

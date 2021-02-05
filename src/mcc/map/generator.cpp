@@ -19,6 +19,7 @@ mcc::map::Generator::Generator() {
    
     this->current = nullptr;
     this->stop = false;
+    this->trigger = false;
     this->thread = std::thread(&Generator::thread_func, this, context);
 }
 
@@ -30,25 +31,29 @@ mcc::map::Generator::~Generator() {
 void mcc::map::Generator::load(Chunk* chunk) {
     chunk_count += 1;
     this->queue_mutex.lock();
-    this->queue.push_back(chunk);
+    this->trigger = true;
+    this->queue.insert(chunk);
     this->queue_mutex.unlock();
-    //std::cout << chunk_count << std::endl;
 }
 
 void mcc::map::Generator::unload(Chunk* chunk) {
     chunk_count -= 1;
     this->queue_mutex.lock();
-    this->queue.remove(chunk);
+    auto it = this->queue.find(chunk);
+    if (it != this->queue.end()) {
+        this->queue.erase(it);
+        if (chunk->should_delete()) {
+            delete chunk;
+        }
+    }
     this->queue_mutex.unlock();
-    while (this->current == chunk)
-        std::cout << "waiting " << chunk << std::endl; // Wait for the chunk to finish loading
-    //std::cout << chunk_count << std::endl;
 }
 
 void mcc::map::Generator::thread_func(void* context) {
     glfwMakeContextCurrent((GLFWwindow*)context);
 
     while (!this->stop) {
+        while (!this->trigger && !this->stop);
         this->queue_mutex.lock();
 
         if (this->queue.empty()) {
@@ -56,17 +61,24 @@ void mcc::map::Generator::thread_func(void* context) {
             continue;
         }
 
-        this->current = this->queue.front();
+        this->current = *this->queue.begin();
         for (auto& c : this->queue) {
-            if (c->get_parent() == nullptr ||
-                (this->current->get_parent() != nullptr && c->get_parent()->get_score() < this->current->get_parent()->get_score())) {
+            if (c->get_parent() == nullptr) {
+                this->current = c;
+                break;
+            }
+
+            if (c->get_parent()->get_score() < this->current->get_parent()->get_score()) {
                 this->current = c;
             }
         }
-        this->queue.remove(this->current);
+        this->queue.erase(this->current);
         this->queue_mutex.unlock();
 
         this->current->generate();
+        if (this->current->should_delete()) {
+            delete this->current;
+        }
         this->current = nullptr;
     }
 

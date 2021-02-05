@@ -29,6 +29,16 @@ void Camera::set_rotation(const glm::vec2& rotation) {
     this->rot.y = glm::mod(this->rot.y, 2 * glm::pi<float>());
 }
 
+void mcc::ui::Camera::set_direction(const glm::vec3& dir) {
+    this->rot.x = asin(dir.y);
+
+    
+}
+
+void mcc::ui::Camera::look_at(const glm::vec3& point) {
+
+}
+
 void Camera::set_fov(float fov) {
     this->fov = fov;
 }

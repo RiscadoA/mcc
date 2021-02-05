@@ -14,11 +14,28 @@ mcc::map::Chunk::Chunk(Generator& generator, Chunk* parent, glm::f64vec3 center,
     this->generated = false;
     this->has_fence = false;
     this->visible = false;
+    this->delete_flag = false;
     this->generator.load(this);
 }
 
 mcc::map::Chunk::~Chunk() {
-    this->generator.unload(this);
+    this->collapse();
+
+    if (!this->delete_flag) {
+        this->generator.unload(this);
+        while (this->generator.get_current() == this);
+    }
+}
+
+void mcc::map::Chunk::collapse() {
+    for (int i = 0; i < 8; ++i) {
+        if (this->children[i] != nullptr) {
+            this->children[i]->delete_flag = true;
+            this->children[i]->collapse();
+            this->generator.unload(this->children[i]);
+            this->children[i] = nullptr;
+        }
+    }
 }
 
 void mcc::map::Chunk::generate() {
@@ -44,7 +61,8 @@ void mcc::map::Chunk::generate() {
 
 void mcc::map::Chunk::update(const ui::Camera& camera, float lod_distance) {
     auto offset = camera.get_position() - glm::vec3(this->center);
-    auto distance = glm::length(offset);
+    auto dd = glm::max(glm::abs(offset) - glm::vec3(this->vox_sz * this->chunk_size), glm::vec3(0.0f));
+    auto distance = glm::length(dd);
 
     if (!this->generated) {
         this->visible = false;
@@ -96,10 +114,7 @@ void mcc::map::Chunk::update(const ui::Camera& camera, float lod_distance) {
     }
     else if (this->children[0] != nullptr && !divide) {
         // Collapse chunk
-        for (int i = 0; i < 8; ++i) {
-            delete this->children[i];
-            this->children[i] = nullptr;
-        }
+        this->collapse();
     }
 
     // Calculate visibility

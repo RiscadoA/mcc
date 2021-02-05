@@ -1,6 +1,6 @@
 #pragma once
 
-#include <list>
+#include <set>
 #include <thread>
 #include <mutex>
 #include <atomic>
@@ -22,6 +22,8 @@ namespace mcc::map {
         void load(Chunk* chunk);
         void unload(Chunk* chunk);
 
+        inline Chunk* get_current() const { return this->current; }
+
         // Receives the chunk center coordinates and its level and generates the palette used.
         virtual void generate_palette(glm::f64vec3 pos, int level, gl::Material* palette) = 0;
         // Receives the voxel's coordinates and its level and generates its material
@@ -33,9 +35,10 @@ namespace mcc::map {
         std::thread thread;
 
         std::atomic<bool> stop;
-        std::list<Chunk*> queue;
+        std::set<Chunk*> queue;
         Chunk* current;
-        std::mutex queue_mutex;
+        std::recursive_mutex queue_mutex;
+        bool trigger;
 
         int chunk_count;
     };

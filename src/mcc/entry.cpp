@@ -418,6 +418,8 @@ int main(int argc, char** argv) {
     auto generator = Generator();
     auto chunk = mcc::map::Chunk(generator, nullptr, { 0.0, 0.0, 0.0 }, 256.0f, 32, 8);
 
+    auto obj = manager.get<mcc::data::Model>("model.chr_knight").unwrap();
+
     glEnable(GL_CULL_FACE);
     glFrontFace(GL_CCW);
 
@@ -442,10 +444,10 @@ int main(int argc, char** argv) {
             camera->move(camera->get_up() * dt * camera_speed);
         }
         if (glfwGetKey(win, GLFW_KEY_1) == GLFW_PRESS) {
-            camera_speed *= 1 - 0.5 * dt;
+            camera_speed *= 1 - dt;
         }
         else if (glfwGetKey(win, GLFW_KEY_2) == GLFW_PRESS) {
-            camera_speed *= 1 + 0.5 * dt;
+            camera_speed *= 1 + dt;
         }
 
         camera->update();
@@ -475,12 +477,12 @@ int main(int argc, char** argv) {
         glUniformMatrix4fv(vp_loc, 1, GL_FALSE, &vp[0][0]);
         chunk.draw(*camera, model_loc);
 
-        //glm::mat4 model = glm::mat4(1.0f);
-        //model = glm::rotate(model, glm::pi<float>(), glm::vec3(0.0f, 1.0f, 0.0f));
-        //model = glm::translate(model, glm::vec3(0.0f, 0.0f, 0.0f));
-        //glUniformMatrix4fv(model_loc, 1, GL_FALSE, &model[0][0]);
-        //glUniformMatrix4fv(vp_loc, 1, GL_FALSE, &vp[0][0]);
-        //(using_octree ? mesh : obj->get_mesh()).draw_opaque();
+        glm::mat4 model = glm::mat4(1.0f);
+        model = glm::rotate(model, glm::pi<float>(), glm::vec3(0.0f, 1.0f, 0.0f));
+        model = glm::translate(model, glm::vec3(0.0f, 4000.0f, 0.0f));
+        glUniformMatrix4fv(model_loc, 1, GL_FALSE, &model[0][0]);
+        glUniformMatrix4fv(vp_loc, 1, GL_FALSE, &vp[0][0]);
+        obj->get_mesh().draw_opaque();
 
         // Screen quad rendering
         glBindFramebuffer(GL_FRAMEBUFFER, 0);
