@@ -11,6 +11,7 @@
 #include <mcc/gl/shader.hpp>
 #include <mcc/gl/vertex_array.hpp>
 #include <mcc/gl/mesh.hpp>
+#include <mcc/gl/debug.hpp>
 #include <mcc/ui/camera.hpp>
 
 #include <mcc/map/chunk.hpp>
@@ -26,7 +27,7 @@ float camera_sensitivity = 0.1f;
 float camera_speed = 1.0f;
 const glm::vec4 sky_color = { 0.1f, 0.5f, 0.8f, 1.0f };
 bool wireframe = false;
-bool using_octree = false;
+bool debug_rendering = false;
 
 class Generator : public mcc::map::Generator {
 public:
@@ -46,7 +47,7 @@ public:
     }
 
     virtual unsigned char generate_material(glm::f64vec3 pos, int level) override {
-        /*const float radius = 4000.0f;
+        const float radius = 4000.0f;
         auto projected = glm::normalize(glm::vec3(pos)) * radius;
         auto height = glm::max(radius,
             radius +
@@ -67,13 +68,13 @@ public:
         }
         else {
             return 3;
-        }*/
+        }
 
-        pos /= 50.0;
+        /*pos /= 50.0;
 
         return (glm::cos(float(pos.x)) +
-                glm::tanh(float(pos.y)) +
-                glm::cos(float(pos.z))) < 0 ? 1 : 0;
+                glm::tanh(float(pos.z)) +
+                glm::cos(float(pos.y))) < 0 ? 0 : 1;*/
     }
 };
 
@@ -101,7 +102,7 @@ void glfw_key_callback(GLFWwindow* win, int key, int, int action, int) {
         case GLFW_KEY_F1:
             wireframe = !wireframe;
         case GLFW_KEY_F2:
-            using_octree = !using_octree;
+            debug_rendering = !debug_rendering;
         }
     }
 }
@@ -203,6 +204,9 @@ int main(int argc, char** argv) {
         glDebugMessageCallback(gl_debug_output, nullptr);
         glDebugMessageControl(GL_DONT_CARE, GL_DONT_CARE, GL_DONT_CARE, 0, nullptr, GL_TRUE);
     }
+
+    // Setup debug renderer
+    mcc::gl::Debug::init();
 
     // Setup asset manager
     auto model_loader = mcc::data::Model::Loader(config);
@@ -447,8 +451,11 @@ int main(int argc, char** argv) {
         camera->update();
         chunk.update(*camera, float(config["camera.lod_multiplier"].unwrap().as_double().unwrap()));
 
+        // Opaque pass
         glBindFramebuffer(GL_FRAMEBUFFER, ss_fbo);
+        glDisable(GL_BLEND);
         glEnable(GL_DEPTH_TEST);
+        glDepthMask(GL_TRUE);
         glPolygonMode(GL_FRONT_AND_BACK, wireframe ? GL_LINE : GL_FILL);
 
         // Clear framebuffer
@@ -462,7 +469,7 @@ int main(int argc, char** argv) {
         glDrawBuffers(3, &draw_buffers[0]);
         glClear(GL_DEPTH_BUFFER_BIT);
 
-        // Opaque pass
+        // Draw opaque scene
         glm::mat4 vp = camera->get_projection() * camera->get_view();
         mesh_shader.bind();
         glUniformMatrix4fv(vp_loc, 1, GL_FALSE, &vp[0][0]);
@@ -478,6 +485,7 @@ int main(int argc, char** argv) {
         // Screen quad rendering
         glBindFramebuffer(GL_FRAMEBUFFER, 0);
         glDisable(GL_DEPTH_TEST);
+        glDepthMask(GL_FALSE);
         glPolygonMode(GL_FRONT_AND_BACK, GL_FILL);
 
         ss_shader.bind();
@@ -496,12 +504,24 @@ int main(int argc, char** argv) {
         ss_quad.va.bind();
         glDrawArrays(GL_TRIANGLES, 0, 6);
 
+        // Debug draw on top of screen
+        int width, height;
+        glfwGetWindowSize(win, &width, &height);
+        glBindFramebuffer(GL_READ_FRAMEBUFFER, ss_fbo);
+        glBindFramebuffer(GL_DRAW_FRAMEBUFFER, 0);
+        glBlitFramebuffer(0, 0, width, height, 0, 0, width, height, GL_DEPTH_BUFFER_BIT, GL_NEAREST);
+        if (debug_rendering) {
+            mcc::gl::Debug::flush(vp, 1 / 144.0f);
+        }
+
         glfwSwapBuffers(win);
     }
 
     // Unload game
 
     delete camera;
+
+    mcc::gl::Debug::terminate();
 
     glfwDestroyWindow(win);
 

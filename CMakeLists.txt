@@ -22,6 +22,8 @@ set (SOURCE_FILES
 	"src/mcc/gl/mesh.cpp"
 	"src/mcc/gl/voxel.hpp"
 	"src/mcc/gl/voxel.cpp"
+	"src/mcc/gl/debug.hpp"
+	"src/mcc/gl/debug.cpp"
 
 	"src/mcc/data/manager.hpp"
 	"src/mcc/data/handle.hpp"

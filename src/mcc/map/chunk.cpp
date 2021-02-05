@@ -1,5 +1,7 @@
 #include <mcc/map/chunk.hpp>
 
+#include <mcc/gl/debug.hpp>
+
 #include <GL/glew.h>
 #include <glm/gtc/matrix_transform.hpp>
 
@@ -45,7 +47,7 @@ void mcc::map::Chunk::update(const ui::Camera& camera, float lod_distance) {
     auto distance = glm::length(offset);
 
     if (!this->generated) {
-        this->score = distance - this->level * 100;
+        this->score = distance;
         this->visible = false;
 
         if (this->has_fence) {
@@ -138,7 +140,8 @@ void mcc::map::Chunk::draw(const ui::Camera& camera, unsigned int model_loc) {
             glm::vec3(this->center) - glm::vec3(this->vox_sz * this->chunk_size) * 0.5f
         );
         glUniformMatrix4fv(model_loc, 1, GL_FALSE, &model[0][0]);
-
         this->mesh.draw_opaque();
+
+        gl::Debug::draw_box(this->center, glm::vec3(this->vox_sz * this->chunk_size) * 0.5f, glm::vec4(0.0f, 1.0f, 0.0f, 0.2f));
     }
 }
