@@ -5,26 +5,38 @@
 #include <mcc/map/generator.hpp>
 
 #include <glm/glm.hpp>
+#include <GL/glew.h>
 
 namespace mcc::map {
-    class Chunk {
+    class Chunk final {
     public:
-        Chunk(const Generator& generator, int chunk_size, glm::f64vec3 center, int level);
+        Chunk(Generator& generator, Chunk* parent, glm::f64vec3 center, float vox_sz, int chunk_size, int level);
         ~Chunk();
 
-        void update(glm::vec3 view_point, float lod_distance);
+        void generate();
+        void update(const ui::Camera& camera, float lod_distance);
+        void draw(const ui::Camera& camera, unsigned int model_loc);
 
-        void draw(const ui::Camera& camera);
+        inline float get_score() const { return this->score; }
 
     private:
-        const Generator& generator;
+        Generator& generator;
 
         gl::Mesh mesh;
         gl::Matrix matrix;
 
+        Chunk* parent;
         Chunk* children[8];
 
         glm::f64vec3 center;
+        float vox_sz;
         int chunk_size, level;
+
+        bool visible;
+        bool generated;
+        float score;
+    
+        GLsync sync;
+        bool has_fence;
     };
 }

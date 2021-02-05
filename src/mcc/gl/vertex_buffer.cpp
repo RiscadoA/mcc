@@ -80,6 +80,10 @@ void VertexBuffer::unmap() {
     glUnmapBuffer(GL_ARRAY_BUFFER);
 }
 
+void mcc::gl::VertexBuffer::bind() {
+    glBindBuffer(GL_ARRAY_BUFFER, this->vbo);
+}
+
 Result<void, std::string> VertexBuffer::update(size_t offset, size_t size, const void* data) {
     glBindBuffer(GL_ARRAY_BUFFER, this->vbo);
     glBufferSubData(GL_ARRAY_BUFFER, GLintptr(offset), GLsizeiptr(size), data);

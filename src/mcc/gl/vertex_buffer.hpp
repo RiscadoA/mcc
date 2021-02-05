@@ -15,6 +15,7 @@ namespace mcc::gl {
 
         static Result<VertexBuffer, std::string> create(size_t size, const void* data, Usage usage);
 
+        void bind();
         Result<void, std::string> update(size_t offset, size_t size, const void* data);
         Result<void*, std::string> map();
         void unmap();

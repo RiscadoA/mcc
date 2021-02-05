@@ -6,10 +6,12 @@
 #include <GL/glew.h>
 #include <GLFW/glfw3.h>
 #include <glm/gtc/matrix_transform.hpp>
+#include <glm/gtc/noise.hpp>
 
 #include <mcc/gl/shader.hpp>
 #include <mcc/gl/vertex_array.hpp>
 #include <mcc/gl/mesh.hpp>
+#include <mcc/gl/debug.hpp>
 #include <mcc/ui/camera.hpp>
 
 #include <mcc/map/chunk.hpp>
@@ -25,12 +27,54 @@ float camera_sensitivity = 0.1f;
 float camera_speed = 1.0f;
 const glm::vec4 sky_color = { 0.1f, 0.5f, 0.8f, 1.0f };
 bool wireframe = false;
-bool using_octree = false;
+bool debug_rendering = false;
 
 class Generator : public mcc::map::Generator {
 public:
+    static float simplex(glm::vec3 p, int k) {
+        return glm::simplex(p / float(1 << (2 + k)));
+    }
+
+    static float simplex(glm::vec2 p, int k) {
+        return glm::simplex(p / float(1 << (2 + k)));
+    }
+
+    virtual void generate_palette(glm::f64vec3 pos, int level, mcc::gl::Material* palette) override {
+        palette[1].color = { 255, 0,     0, 255 };
+        palette[2].color = { 0,   150, 255, 255 };
+        palette[3].color = { 200, 200, 200, 255 };
+        palette[4].color = { 255, 255, 255, 255 };
+    }
+
     virtual unsigned char generate_material(glm::f64vec3 pos, int level) override {
-        return 1;
+        const float radius = 4000.0f;
+        auto projected = glm::normalize(glm::vec3(pos)) * radius;
+        auto height = glm::max(radius,
+            radius +
+            simplex(projected, 7) * 150.0f +
+            simplex(projected, 4) * 10.0f +
+            simplex(projected, 1) * 1.0f
+        );
+
+        if (glm::length(pos) > height) {
+            return 0;
+        }
+
+        if (height <= radius) {
+            return 2;
+        }
+        else if (height < radius + 50.0f) {
+            return 1;
+        }
+        else {
+            return 3;
+        }
+
+        /*pos /= 50.0;
+
+        return (glm::cos(float(pos.x)) +
+                glm::tanh(float(pos.z)) +
+                glm::cos(float(pos.y))) < 0 ? 0 : 1;*/
     }
 };
 
@@ -58,7 +102,7 @@ void glfw_key_callback(GLFWwindow* win, int key, int, int action, int) {
         case GLFW_KEY_F1:
             wireframe = !wireframe;
         case GLFW_KEY_F2:
-            using_octree = !using_octree;
+            debug_rendering = !debug_rendering;
         }
     }
 }
@@ -113,7 +157,7 @@ void APIENTRY gl_debug_output(
     std::cout << std::endl;
 }
 
-int main(int argc, char** argv) try {
+int main(int argc, char** argv) {
     auto config = mcc::Config(argc, argv);
 
     camera_sensitivity = float(config["camera.sensitivity"].unwrap().as_double().unwrap());
@@ -125,9 +169,9 @@ int main(int argc, char** argv) try {
         std::abort();
     }
 
-#ifndef NDEBUG
+//#ifndef NDEBUG
     glfwWindowHint(GLFW_OPENGL_DEBUG_CONTEXT, GL_TRUE);
-#endif
+//#endif
     glfwWindowHint(GLFW_CONTEXT_VERSION_MAJOR, 4);
     glfwWindowHint(GLFW_CONTEXT_VERSION_MINOR, 3);
 
@@ -161,6 +205,9 @@ int main(int argc, char** argv) try {
         glDebugMessageControl(GL_DONT_CARE, GL_DONT_CARE, GL_DONT_CARE, 0, nullptr, GL_TRUE);
     }
 
+    // Setup debug renderer
+    mcc::gl::Debug::init();
+
     // Setup asset manager
     auto model_loader = mcc::data::Model::Loader(config);
     auto manager = mcc::data::Manager(config, { { "model", &model_loader } });
@@ -171,7 +218,7 @@ int main(int argc, char** argv) try {
         float(config["window.width"].unwrap().as_double().unwrap() / config["window.height"].unwrap().as_double().unwrap()),
         float(config["camera.z_near"].unwrap().as_double().unwrap()),
         float(config["camera.z_far"].unwrap().as_double().unwrap()),
-        glm::vec3(0.0f, 0.0f, -10.0f),
+        glm::vec3(0.0f, 4096.0f, -8096.0f),
         glm::vec2(0.0f, 0.0f)
     );
 
@@ -213,7 +260,7 @@ int main(int argc, char** argv) try {
     glGenTextures(1, &ss_normal);
     glBindTexture(GL_TEXTURE_2D, ss_normal);
     glTexImage2D(
-        GL_TEXTURE_2D, 0, GL_RGB,
+        GL_TEXTURE_2D, 0, GL_RGB16F,
         int(config["window.width"].unwrap().as_integer().unwrap()),
         int(config["window.height"].unwrap().as_integer().unwrap()),
         0, GL_RGB, GL_FLOAT, nullptr
@@ -310,7 +357,7 @@ int main(int argc, char** argv) try {
         uniform vec3 camera_position;
         uniform float z_far;
 
-        const vec3 light_dir = normalize(vec3(-0.7, 1.0, -0.5));
+        const vec3 light_dir = normalize(vec3(-0.7, 1.5, 0.5));
 
         void main() {
             vec3 albedo = texture(albedo_tex, frag_uv).rgb;
@@ -367,13 +414,9 @@ int main(int argc, char** argv) try {
     auto model_loc = mesh_shader.get_uniform_location("model").unwrap();
     auto vp_loc = mesh_shader.get_uniform_location("vp").unwrap();
 
-    auto obj = manager.get<mcc::data::Model>("model.monu10").unwrap();
-    auto octree = mcc::gl::matrix_to_octree(obj->get_matrix());
-    auto mesh = mcc::gl::Mesh();
-    mesh.update(octree, 128.0f);
-
-    //auto generator = Generator();
-    //auto chunk = mcc::map::Chunk(generator, 16, glm::f64vec3(), 0);
+    // Setup terrain
+    auto generator = Generator();
+    auto chunk = mcc::map::Chunk(generator, nullptr, { 0.0, 0.0, 0.0 }, 256.0f, 32, 8);
 
     glEnable(GL_CULL_FACE);
     glFrontFace(GL_CCW);
@@ -398,11 +441,21 @@ int main(int argc, char** argv) try {
         } else if (glfwGetKey(win, GLFW_KEY_E) == GLFW_PRESS) {
             camera->move(camera->get_up() * dt * camera_speed);
         }
+        if (glfwGetKey(win, GLFW_KEY_1) == GLFW_PRESS) {
+            camera_speed *= 1 - 0.5 * dt;
+        }
+        else if (glfwGetKey(win, GLFW_KEY_2) == GLFW_PRESS) {
+            camera_speed *= 1 + 0.5 * dt;
+        }
 
         camera->update();
+        chunk.update(*camera, float(config["camera.lod_multiplier"].unwrap().as_double().unwrap()));
 
+        // Opaque pass
         glBindFramebuffer(GL_FRAMEBUFFER, ss_fbo);
+        glDisable(GL_BLEND);
         glEnable(GL_DEPTH_TEST);
+        glDepthMask(GL_TRUE);
         glPolygonMode(GL_FRONT_AND_BACK, wireframe ? GL_LINE : GL_FILL);
 
         // Clear framebuffer
@@ -416,20 +469,23 @@ int main(int argc, char** argv) try {
         glDrawBuffers(3, &draw_buffers[0]);
         glClear(GL_DEPTH_BUFFER_BIT);
 
-        // Opaque pass
+        // Draw opaque scene
         glm::mat4 vp = camera->get_projection() * camera->get_view();
         mesh_shader.bind();
-
-        glm::mat4 model = glm::mat4(1.0f);
-        model = glm::rotate(model, glm::pi<float>(), glm::vec3(0.0f, 1.0f, 0.0f));
-        model = glm::translate(model, glm::vec3(0.0f, 0.0f, 0.0f));
-        glUniformMatrix4fv(model_loc, 1, GL_FALSE, &model[0][0]);
         glUniformMatrix4fv(vp_loc, 1, GL_FALSE, &vp[0][0]);
-        (using_octree ? mesh : obj->get_mesh()).draw_opaque();
+        chunk.draw(*camera, model_loc);
+
+        //glm::mat4 model = glm::mat4(1.0f);
+        //model = glm::rotate(model, glm::pi<float>(), glm::vec3(0.0f, 1.0f, 0.0f));
+        //model = glm::translate(model, glm::vec3(0.0f, 0.0f, 0.0f));
+        //glUniformMatrix4fv(model_loc, 1, GL_FALSE, &model[0][0]);
+        //glUniformMatrix4fv(vp_loc, 1, GL_FALSE, &vp[0][0]);
+        //(using_octree ? mesh : obj->get_mesh()).draw_opaque();
 
         // Screen quad rendering
         glBindFramebuffer(GL_FRAMEBUFFER, 0);
         glDisable(GL_DEPTH_TEST);
+        glDepthMask(GL_FALSE);
         glPolygonMode(GL_FRONT_AND_BACK, GL_FILL);
 
         ss_shader.bind();
@@ -448,6 +504,16 @@ int main(int argc, char** argv) try {
         ss_quad.va.bind();
         glDrawArrays(GL_TRIANGLES, 0, 6);
 
+        // Debug draw on top of screen
+        int width, height;
+        glfwGetWindowSize(win, &width, &height);
+        glBindFramebuffer(GL_READ_FRAMEBUFFER, ss_fbo);
+        glBindFramebuffer(GL_DRAW_FRAMEBUFFER, 0);
+        glBlitFramebuffer(0, 0, width, height, 0, 0, width, height, GL_DEPTH_BUFFER_BIT, GL_NEAREST);
+        if (debug_rendering) {
+            mcc::gl::Debug::flush(vp, 1 / 144.0f);
+        }
+
         glfwSwapBuffers(win);
     }
 
@@ -455,13 +521,9 @@ int main(int argc, char** argv) try {
 
     delete camera;
 
+    mcc::gl::Debug::terminate();
+
     glfwDestroyWindow(win);
 
     return 0;
-} catch(std::exception& e)  {
-    std::cerr << "Caught exception on main():\n" << e.what() << "\n";
-    std::abort();
-} catch (...) {
-    std::cerr << "Caught unknown exception on main()\n";
-    std::abort();
 }

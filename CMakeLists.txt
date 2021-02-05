@@ -22,12 +22,15 @@ set (SOURCE_FILES
 	"src/mcc/gl/mesh.cpp"
 	"src/mcc/gl/voxel.hpp"
 	"src/mcc/gl/voxel.cpp"
+	"src/mcc/gl/debug.hpp"
+	"src/mcc/gl/debug.cpp"
 
 	"src/mcc/data/manager.hpp"
 	"src/mcc/data/handle.hpp"
 	"src/mcc/data/model.hpp"
 	"src/mcc/data/model.cpp"
 	"src/mcc/data/manager.cpp"
+	
 	"src/mcc/data/loader.hpp"
 	"src/mcc/data/loader.cpp"
 	"src/mcc/data/qb_parser.hpp"
@@ -40,10 +43,12 @@ set (SOURCE_FILES
 
 	"src/mcc/map/chunk.hpp"
 	"src/mcc/map/chunk.cpp"
+	"src/mcc/map/generator.hpp"
+	"src/mcc/map/generator.cpp"
 
 	"src/mcc/ui/camera.hpp"
 	"src/mcc/ui/camera.cpp"
- "src/mcc/map/generator.hpp" "src/mcc/map/loader.hpp")
+)
 
 add_executable(mcc-game ${SOURCE_FILES})
 set_target_properties(mcc-game PROPERTIES

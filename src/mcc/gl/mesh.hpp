@@ -24,19 +24,23 @@ namespace mcc::gl {
         void draw_opaque() const;
         void draw_transparent() const;
 
-        void update(const Octree& octree, float root_sz, int lod = -1, bool generate_borders = true);
-        void update(const Matrix& matrix, float vx_sz, bool generate_borders = true);
+        void update(const Octree& octree, float root_sz, int lod = -1, bool generate_borders = true, bool gen_va = true);
+        void update(const Matrix& matrix, float vx_sz, bool generate_borders = true, bool gen_va = true);
         void update(
             const std::vector<Vertex>& vertices,
             const std::vector<unsigned int>& opaque_indices,
-            const std::vector<unsigned int>& transparent_indices
+            const std::vector<unsigned int>& transparent_indices,
+            bool gen_va = true
         );
+
+        void generate_va();
 
     private:
         gl::VertexArray va;
         gl::VertexBuffer vb;
         gl::IndexBuffer ib; 
         
+        bool va_ready = false;
         int opaque_count, transparent_count, transparent_offset;
     };
 }
