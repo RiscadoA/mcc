@@ -67,7 +67,6 @@ void mcc::map::Generator::thread_func(void* context) {
         this->queue_mutex.unlock();
 
         this->current->generate();
-        std::cout << "gen level " << this->current->get_level() << std::endl;
         this->current = nullptr;
     }
 

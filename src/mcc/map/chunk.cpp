@@ -12,6 +12,7 @@ mcc::map::Chunk::Chunk(Generator& generator, Chunk* parent, glm::f64vec3 center,
         this->children[i] = nullptr;
     }
     this->generated = false;
+    this->has_fence = false;
     this->visible = false;
     this->generator.load(this);
 }
@@ -37,9 +38,8 @@ void mcc::map::Chunk::generate() {
 
     this->mesh.update(this->matrix, this->vox_sz, true, false);
 
-    glFlush();
-
-    this->generated = true;
+    this->sync = glFenceSync(GL_SYNC_GPU_COMMANDS_COMPLETE, 0);
+    this->has_fence = true;
 }
 
 void mcc::map::Chunk::update(const ui::Camera& camera, float lod_distance) {
@@ -48,8 +48,27 @@ void mcc::map::Chunk::update(const ui::Camera& camera, float lod_distance) {
 
     if (!this->generated) {
         this->visible = false;
-        this->score = distance * distance;
-        return;
+        this->score = distance * distance - this->level * 100;
+        
+        if (this->has_fence) {
+            auto state = glClientWaitSync(this->sync, GL_SYNC_FLUSH_COMMANDS_BIT, 0);
+            if (state == GL_WAIT_FAILED) {
+                std::cerr << "mcc::map::Chunk::update() failed:" << std::endl;
+                std::cerr << "glClientWaitSync() returned GL_WAIT_FAILED:" << std::endl;
+                std::cerr << "glGetError() returned " << glGetError() << std::endl;
+                std::abort();
+            }
+            else if (state != GL_TIMEOUT_EXPIRED) {
+                this->generated = true;
+                this->mesh.generate_va();
+            }
+            else {
+                return;
+            }
+        }
+        else {
+            return;
+        }
     }
 
     // Check if this chunk should be further divided
@@ -123,7 +142,6 @@ void mcc::map::Chunk::draw(const ui::Camera& camera, unsigned int model_loc) {
             glm::vec3(this->center) - glm::vec3(this->vox_sz * this->chunk_size) * 0.5f
         );
         glUniformMatrix4fv(model_loc, 1, GL_FALSE, &model[0][0]);
-        this->mesh.generate_va();
         this->mesh.draw_opaque();
 
         gl::Debug::draw_box(this->center, glm::vec3(this->vox_sz * this->chunk_size) * 0.5f, glm::vec4(0.0f, 1.0f, 0.0f, 0.2f));

@@ -37,5 +37,8 @@ namespace mcc::map {
         bool visible;
         bool generated;
         float score;
+
+        GLsync sync;
+        bool has_fence;
     };
 }
