@@ -47,7 +47,7 @@ public:
     }
 
     virtual unsigned char generate_material(glm::f64vec3 pos, int level) override {
-        const float radius = 4000.0f;
+        /*const float radius = 4000.0f;
         auto projected = glm::normalize(glm::vec3(pos)) * radius;
         auto height = glm::max(radius,
             radius +
@@ -68,13 +68,12 @@ public:
         }
         else {
             return 3;
-        }
+        }*/
 
-        /*pos /= 50.0;
-
+        pos /= 50.0;
         return (glm::cos(float(pos.x)) +
-                glm::tanh(float(pos.z)) +
-                glm::cos(float(pos.y))) < 0 ? 0 : 1;*/
+                glm::tanh(float(pos.y)) +
+                glm::cos(float(pos.z))) < 0 ? 1 : 0;
     }
 };
 
@@ -101,8 +100,10 @@ void glfw_key_callback(GLFWwindow* win, int key, int, int action, int) {
         switch (key) {
         case GLFW_KEY_F1:
             wireframe = !wireframe;
+            break;
         case GLFW_KEY_F2:
             debug_rendering = !debug_rendering;
+            break;
         }
     }
 }
@@ -179,7 +180,7 @@ int main(int argc, char** argv) {
         int(config["window.width"].unwrap().as_integer().unwrap()),
         int(config["window.height"].unwrap().as_integer().unwrap()),
         "MCC",
-        nullptr, //glfwGetPrimaryMonitor(),
+        int(config["window.fullscreen"].unwrap().as_integer().unwrap()) == 0 ? nullptr : glfwGetPrimaryMonitor(),
         nullptr
     );
 
@@ -218,7 +219,7 @@ int main(int argc, char** argv) {
         float(config["window.width"].unwrap().as_double().unwrap() / config["window.height"].unwrap().as_double().unwrap()),
         float(config["camera.z_near"].unwrap().as_double().unwrap()),
         float(config["camera.z_far"].unwrap().as_double().unwrap()),
-        glm::vec3(0.0f, 4096.0f, -8096.0f),
+        glm::vec3(0.0f, 0.0f, -8096.0f),
         glm::vec2(0.0f, 0.0f)
     );
 
@@ -479,7 +480,7 @@ int main(int argc, char** argv) {
 
         glm::mat4 model = glm::mat4(1.0f);
         model = glm::rotate(model, glm::pi<float>(), glm::vec3(0.0f, 1.0f, 0.0f));
-        model = glm::translate(model, glm::vec3(0.0f, 4000.0f, 0.0f));
+        model = glm::translate(model, glm::vec3(0.0f, 0.0f, 3900.0f));
         glUniformMatrix4fv(model_loc, 1, GL_FALSE, &model[0][0]);
         glUniformMatrix4fv(vp_loc, 1, GL_FALSE, &vp[0][0]);
         obj->get_mesh().draw_opaque();
@@ -516,6 +517,9 @@ int main(int argc, char** argv) {
             mcc::gl::Debug::flush(vp, 1 / 144.0f);
         }
 
+
+
+        glBindFramebuffer(GL_FRAMEBUFFER, 0);
         glfwSwapBuffers(win);
     }
 

@@ -72,6 +72,7 @@ void mcc::map::Generator::thread_func(void* context) {
                 this->current = c;
             }
         }
+
         this->queue.erase(this->current);
         this->queue_mutex.unlock();
 
