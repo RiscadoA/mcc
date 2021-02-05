@@ -47,9 +47,9 @@ void mcc::map::Chunk::update(const ui::Camera& camera, float lod_distance) {
     auto distance = glm::length(offset);
 
     if (!this->generated) {
-        this->score = distance;
         this->visible = false;
-
+        this->score = distance * distance - this->level * 100;
+        
         if (this->has_fence) {
             auto state = glClientWaitSync(this->sync, GL_SYNC_FLUSH_COMMANDS_BIT, 0);
             if (state == GL_WAIT_FAILED) {
@@ -108,8 +108,10 @@ void mcc::map::Chunk::update(const ui::Camera& camera, float lod_distance) {
 
     // Update children
     if (divide) {
+        this->score = +INFINITY;
         for (int i = 0; i < 8; ++i) {
             this->children[i]->update(camera, lod_distance);
+            this->score = std::min(this->score, this->children[i]->score);
         }
     }
 }

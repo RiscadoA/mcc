@@ -32,7 +32,7 @@ void mcc::map::Generator::load(Chunk* chunk) {
     this->queue_mutex.lock();
     this->queue.push_back(chunk);
     this->queue_mutex.unlock();
-    std::cout << chunk_count << std::endl;
+    //std::cout << chunk_count << std::endl;
 }
 
 void mcc::map::Generator::unload(Chunk* chunk) {
@@ -42,7 +42,7 @@ void mcc::map::Generator::unload(Chunk* chunk) {
     this->queue_mutex.unlock();
     while (this->current == chunk)
         std::cout << "waiting " << chunk << std::endl; // Wait for the chunk to finish loading
-    std::cout << chunk_count << std::endl;
+    //std::cout << chunk_count << std::endl;
 }
 
 void mcc::map::Generator::thread_func(void* context) {
@@ -58,7 +58,8 @@ void mcc::map::Generator::thread_func(void* context) {
 
         this->current = this->queue.front();
         for (auto& c : this->queue) {
-            if (c->get_score() < this->current->get_score()) {
+            if (c->get_parent() == nullptr ||
+                (this->current->get_parent() != nullptr && c->get_parent()->get_score() < this->current->get_parent()->get_score())) {
                 this->current = c;
             }
         }

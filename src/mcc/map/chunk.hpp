@@ -17,7 +17,9 @@ namespace mcc::map {
         void update(const ui::Camera& camera, float lod_distance);
         void draw(const ui::Camera& camera, unsigned int model_loc);
 
+        inline Chunk* get_parent() const { return this->parent; }
         inline float get_score() const { return this->score; }
+        inline int get_level() const { return this->level; }
 
     private:
         Generator& generator;
@@ -35,7 +37,7 @@ namespace mcc::map {
         bool visible;
         bool generated;
         float score;
-    
+
         GLsync sync;
         bool has_fence;
     };
