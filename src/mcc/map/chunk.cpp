@@ -64,9 +64,11 @@ void mcc::map::Chunk::update(const ui::Camera& camera, float lod_distance) {
     auto dd = glm::max(glm::abs(offset) - glm::vec3(this->vox_sz * this->chunk_size), glm::vec3(0.0f));
     auto distance = glm::length(dd);
 
+    bool intersects_frustum = camera.intersects_frustum(this->center, this->vox_sz * this->chunk_size);
+
     if (!this->generated) {
         this->visible = false;
-        this->score = distance * distance - this->level * 100;
+        this->score = (distance * distance - this->level * 100)/* * (intersects_frustum ? 1.0f : 1000.0f)*/;
         
         if (this->has_fence) {
             auto state = glClientWaitSync(this->sync, GL_SYNC_FLUSH_COMMANDS_BIT, 0);
@@ -118,8 +120,7 @@ void mcc::map::Chunk::update(const ui::Camera& camera, float lod_distance) {
     }
 
     // Calculate visibility
-    this->visible = (this->parent == nullptr || this->parent->visible)
-        && camera.intersects_frustum(this->center, this->vox_sz * this->chunk_size);
+    this->visible = (this->parent == nullptr || this->parent->visible) && intersects_frustum;
 
     // Update children
     if (divide) {
