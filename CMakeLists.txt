@@ -48,7 +48,7 @@ set (SOURCE_FILES
 
 	"src/mcc/ui/camera.hpp"
 	"src/mcc/ui/camera.cpp"
-)
+ "src/mcc/gl/deferred_renderer.hpp"  "src/mcc/gl/deferred_renderer.cpp")
 
 add_executable(mcc-game ${SOURCE_FILES})
 set_target_properties(mcc-game PROPERTIES
